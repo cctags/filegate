@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,19 @@ func Load(path string) (Config, error) {
 		return c, err
 	}
 	defer f.Close()
-	d := json.NewDecoder(io.LimitReader(f, 1<<20))
+	const maxConfigSize = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(f, maxConfigSize+1))
+	if err != nil {
+		return c, err
+	}
+	if len(data) > maxConfigSize {
+		return c, errors.New("configuration exceeds 1 MiB")
+	}
+	data, err = stripJSONComments(data)
+	if err != nil {
+		return c, err
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	if err = d.Decode(&c); err != nil {
 		return c, err

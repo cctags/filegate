@@ -20,17 +20,44 @@ import (
 
 const example = `{
   "listen": "0.0.0.0:8080",
+
+  // 相对路径以本配置文件所在目录为基准。
+  // 状态目录、黑名单和 TLS 私钥必须放在工作根目录之外。
   "root": "content",
   "state_dir": "state",
   "blacklist": "blacklist.txt",
-  "directories": {"ab": "ab", "cd": "cd"},
+
+  // 键是访问码前缀：1–16 个小写英文字母。
+  // 值是 root 下的相对目录，支持中文；新增映射前先创建目录。
+  "directories": {
+    "ab": "ab",
+    "cd": "cd",
+    "ch": "文件夹"
+  },
+
+  // 默认访问码有效期，可由 --ttl 覆盖；成功登录一次即失效。
+  // 与登录后的会话期限无关。时长格式支持 30s、10m、8h。
   "code_ttl": "10m",
+
+  // 按最后一次授权请求计算空闲时间。
+  // 仅阅读页面或播放已下载的音频，不会自动续期。
   "idle_timeout": "30m",
+
+  // 从登录开始计算的最长会话时间，不因持续访问而延长。
   "max_session": "8h",
+
+  // 同一 IP 在此时间窗口内达到 max_failures 次错误，
+  // 或一分钟内超过 attempts_per_minute 次登录提交，会被临时封禁。
   "failure_window": "10m",
-  "ban_duration": "15m",
   "max_failures": 5,
-  "attempts_per_minute": 10
+  "attempts_per_minute": 10,
+
+  // 自动封禁的持续时间；管理员添加的永久黑名单不自动到期。
+  "ban_duration": "15m"
+
+  // 默认使用 HTTP。需要 HTTPS 时，在上一项后加逗号并启用：
+  // "tls_cert": "server.crt",
+  // "tls_key": "server.key"
 }
 `
 
@@ -68,7 +95,7 @@ func runArgs(args []string, output io.Writer) error {
 		if ce != nil {
 			return ce
 		}
-		for _, d := range []string{"content/ab", "content/cd", "state"} {
+		for _, d := range []string{"content/ab", "content/cd", "content/文件夹", "state"} {
 			if e = os.MkdirAll(filepath.Join(base, d), 0700); e != nil {
 				return e
 			}

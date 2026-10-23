@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"filegate/internal/gate"
 )
 
 func TestLongOptions(t *testing.T) {
@@ -81,6 +83,28 @@ func TestLongOptionInitialization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg, err := gate.Load(config)
+	if err != nil {
+		t.Fatalf("generated JSONC configuration cannot be loaded: %v", err)
+	}
+	if cfg.Directories["ch"] != "文件夹" || !bytes.Contains(original, []byte("//")) {
+		t.Fatal("missing Chinese directory or field comments")
+	}
+	for _, directory := range cfg.Directories {
+		info, err := os.Stat(filepath.Join(cfg.Root, directory))
+		if err != nil || !info.IsDir() {
+			t.Fatalf("configured directory %q was not created", directory)
+		}
+	}
+	app, err := gate.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	if reply := app.Admin(gate.Request{Action: "code", Value: "ch"}); reply.Error != "" {
+		t.Fatalf("cannot issue Chinese directory code: %s", reply.Error)
+	}
+
 	if !strings.Contains(out.String(), "--serve") {
 		t.Fatal("initialization hint uses old syntax")
 	}

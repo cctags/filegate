@@ -36,6 +36,9 @@ no default. ALIAS is a configured key of 1-16 lowercase English letters,
 not a directory path. Directory names may contain Chinese characters.
 Management actions require a running server and its OS user (or root).
 --help and --version need neither a configuration file nor a running server.
+Configuration accepts JSONC // and /* */ comments, or plain JSON, regardless
+of extension. The default filename remains config.json; --config config.jsonc
+is also supported. Trailing commas and JSON5 syntax are not supported.
 Options may appear in any order. Values accept --option VALUE or
 --option=VALUE. Single-dash options and positional commands are not accepted.
 
@@ -44,7 +47,7 @@ Configuration defaults written by --init:
   root                   content
   state_dir              state
   blacklist              blacklist.txt
-  directories            ab -> ab, cd -> cd
+  directories            ab -> ab, cd -> cd, ch -> 文件夹
   code_ttl               10m
   idle_timeout           30m
   max_session            8h
@@ -68,7 +71,8 @@ a restart. Blacklist file contents take effect without a signal.
 Examples:
   # 1. Initialize a NEW deployment (skip if its config already exists).
   filegate --config tmp/demo/config.json --init
-  # Creates content/ab, content/cd, state and blacklist.txt under tmp/demo/.
+  # Creates content/ab, content/cd, content/文件夹, state and blacklist.txt
+  # under tmp/demo/. config.json contains // explanations above key fields.
 
   # 2. Start the server. Keep this terminal open; use another for management.
   filegate --config tmp/demo/config.json --serve
@@ -77,13 +81,16 @@ Examples:
   # 3. Issue an access code for the existing ab directory.
   filegate --config tmp/demo/config.json --code ab
   filegate --config tmp/demo/config.json --code ab --ttl 30m
+  filegate --config tmp/demo/config.json --code ch --ttl 30m
+  # ch is the initialized alias for 文件夹.
   # Send the returned code (e.g. ab01234567) to the user, not the id.
   # The code allows one successful login; the session has separate timeouts.
 
   # 4. Add a directory while the server is running, then copy files into it.
-  mkdir -p tmp/demo/content/文件夹
+  mkdir -p tmp/demo/content/documents
   # Edit tmp/demo/config.json: preserve other fields and update directories to:
-  # "directories": {"ab": "ab", "cd": "cd", "ch": "文件夹"}
+  # "directories": {"ab": "ab", "cd": "cd", "ch": "文件夹",
+  #                 "docs": "documents"}
   # Merely creating the folder does not make it accessible.
 
   # 5. Reload the server after saving the configuration.
@@ -92,15 +99,15 @@ Examples:
   kill -HUP "$(pidof -s filegate)"
   # With multiple instances, send HUP to the specific server PID instead.
   # Confirm "configuration reloaded" in the server log before issuing a code.
-  filegate --config tmp/demo/config.json --code ch --ttl 30m
-  # Enter the returned ch-prefixed code in the browser to access 文件夹.
+  filegate --config tmp/demo/config.json --code docs --ttl 30m
+  # Enter the returned docs-prefixed code in the browser to access documents.
   # Remapping/removing aliases revokes their codes and sessions;
   # unchanged aliases keep their authorizations.
 
   # 6. Inspect, revoke access, or manage the permanent blacklist.
   filegate --config tmp/demo/config.json --status
   filegate --config tmp/demo/config.json --revoke CODE_ID
-  filegate --config tmp/demo/config.json --logout ch
+  filegate --config tmp/demo/config.json --logout docs
   filegate --config tmp/demo/config.json --block 203.0.113.25
   filegate --config tmp/demo/config.json --block 198.51.100.0/24
   filegate --config tmp/demo/config.json --unblock 203.0.113.25
