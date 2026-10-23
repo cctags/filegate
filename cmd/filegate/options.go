@@ -30,6 +30,10 @@ Options:
 Options may appear in any order. Values accept --option VALUE or
 --option=VALUE. Single-dash options and positional commands are not accepted.
 
+Server signals:
+  SIGHUP                 Reload directory mappings and runtime limits
+  SIGINT, SIGTERM        Shut down gracefully
+
 Examples:
   filegate --init --config config.json
   filegate --serve --config config.json

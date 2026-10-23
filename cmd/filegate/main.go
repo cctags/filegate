@@ -123,6 +123,9 @@ func runArgs(args []string, output io.Writer) error {
 	server := &http.Server{Addr: c.Listen, Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	reload := make(chan os.Signal, 1)
+	signal.Notify(reload, syscall.SIGHUP)
+	defer signal.Stop(reload)
 	done := make(chan error, 1)
 	go func() {
 		if c.TLSCert != "" {
@@ -135,21 +138,31 @@ func runArgs(args []string, output io.Writer) error {
 	if c.TLSCert == "" {
 		slog.Warn("HTTP is unencrypted; use only on a trusted network")
 	}
-	select {
-	case e = <-done:
-		if errors.Is(e, http.ErrServerClosed) {
-			return nil
+	for {
+		select {
+		case <-reload:
+			result, err := app.Reload(opts.config)
+			if err != nil {
+				slog.Error("configuration reload failed; keeping previous configuration", "error", err)
+			} else {
+				slog.Info("configuration reloaded", "directories", result.Directories,
+					"revoked_codes", result.RevokedCodes, "revoked_sessions", result.RevokedSessions)
+			}
+		case e = <-done:
+			if errors.Is(e, http.ErrServerClosed) {
+				return nil
+			}
+			return e
+		case <-ctx.Done():
+			admin.Close()
+			shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			e = server.Shutdown(shutdown)
+			if e != nil {
+				server.Close()
+			}
+			return e
 		}
-		return e
-	case <-ctx.Done():
-		admin.Close()
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		e = server.Shutdown(shutdown)
-		if e != nil {
-			server.Close()
-		}
-		return e
 	}
 }
 func main() {

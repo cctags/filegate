@@ -37,6 +37,7 @@ type attempts struct {
 }
 type App struct {
 	cfg         Config
+	closed      bool
 	mu          sync.Mutex
 	state       State
 	sessions    map[string]Session
@@ -111,9 +112,13 @@ func New(c Config) (*App, error) {
 	return a, nil
 }
 func (a *App) Close() {
-	for _, r := range a.roots {
-		r.Close()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
+		return
 	}
+	a.closed = true
+	closeRoots(a.roots)
 	if a.root != nil {
 		a.root.Close()
 	}

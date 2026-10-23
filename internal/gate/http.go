@@ -114,12 +114,16 @@ func (a *App) Handler() http.Handler {
 	})
 }
 func (a *App) session(r *http.Request) (Session, bool) {
-	c, e := r.Cookie(cookieName)
-	if e != nil {
-		return Session{}, false
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.sessionLocked(r)
+}
+
+func (a *App) sessionLocked(r *http.Request) (Session, bool) {
+	c, err := r.Cookie(cookieName)
+	if err != nil || a.closed {
+		return Session{}, false
+	}
 	s, ok := a.sessions[c.Value]
 	now := time.Now()
 	if !ok {
@@ -133,6 +137,23 @@ func (a *App) session(r *http.Request) (Session, bool) {
 	a.sessions[c.Value] = s
 	return s, true
 }
+
+// Recheck the session and open the file under one lock. Otherwise a reload
+// could replace a directory between authorization and opening its contents.
+func (a *App) openFile(r *http.Request, name string) (*os.File, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	s, ok := a.sessionLocked(r)
+	if !ok {
+		return nil, os.ErrPermission
+	}
+	root := a.roots[s.Alias]
+	if root == nil {
+		return nil, os.ErrPermission
+	}
+	return root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+}
+
 func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	ip, _ := clientIP(r)
 	now := time.Now()
@@ -275,7 +296,7 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	f, e := a.roots[s.Alias].OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, e := a.openFile(r, name)
 	if e != nil {
 		http.NotFound(w, r)
 		return
@@ -319,7 +340,7 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 	render(w, 200, v)
 }
 func (a *App) file(w http.ResponseWriter, r *http.Request) {
-	s, ok := a.authorize(w, r)
+	_, ok := a.authorize(w, r)
 	if !ok {
 		return
 	}
@@ -334,7 +355,7 @@ func (a *App) file(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	f, e := a.roots[s.Alias].OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, e := a.openFile(r, name)
 	if e != nil {
 		http.NotFound(w, r)
 		return
