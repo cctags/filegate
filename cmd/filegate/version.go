@@ -14,17 +14,15 @@ var (
 )
 
 func versionInfo() string {
-	commit, modified := "unknown", "unknown"
+	modified := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			switch setting.Key {
-			case "vcs.revision":
-				commit = setting.Value
 			case "vcs.modified":
 				modified = setting.Value
 			}
 		}
 	}
-	return fmt.Sprintf("filegate %s\ncommit: %s\nmodified: %s\nbuilt: %s\ngo: %s\nplatform: %s/%s",
-		version, commit, modified, buildTime, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	return fmt.Sprintf("filegate %s\nmodified: %s\nbuilt: %s\ngo: %s\nplatform: %s/%s",
+		version, modified, buildTime, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }

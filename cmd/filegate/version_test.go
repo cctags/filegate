@@ -16,10 +16,13 @@ func TestVersionWithoutConfiguration(t *testing.T) {
 			if err := runArgs([]string{"--config", config, flag}, &out); err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"filegate " + version, "commit: ", "modified: ", "built: " + buildTime, "go: " + runtime.Version(), "platform: " + runtime.GOOS + "/" + runtime.GOARCH} {
+			for _, want := range []string{"filegate " + version, "modified: ", "built: " + buildTime, "go: " + runtime.Version(), "platform: " + runtime.GOOS + "/" + runtime.GOARCH} {
 				if !strings.Contains(out.String(), want) {
 					t.Errorf("version output missing %q: %s", want, out.String())
 				}
+			}
+			if strings.Contains(out.String(), "\ncommit:") {
+				t.Fatal("version output must not contain a separate commit hash line")
 			}
 		})
 	}

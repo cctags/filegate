@@ -20,7 +20,7 @@ make build
 ./tmp/filegate --config tmp/demo/config.json code ab --ttl 30m
 ```
 
-排查问题时运行 `./tmp/filegate --version`，提供版本、Git 提交、工作区修改标记、UTC 构建时间、Go 版本和目标平台。此命令不需要配置文件或正在运行的服务。`make build` 默认使用 Git 标签/提交描述作为版本；可用 `make build VERSION=v0.1.0` 指定发布版本。未提交的源码构建会显示 `-dirty` 和 `modified: true`；不在 Git 仓库中构建时提交信息显示 `unknown`。直接 `go build` 的版本为 `dev`、构建时间为 `unknown`。
+排查问题时运行 `./tmp/filegate --version`，提供 Git 描述版本、工作区修改标记、UTC 构建时间、Go 版本和目标平台，不再单独输出长哈希 `commit:` 行。此命令不需要配置文件或正在运行的服务。`make build` 仍通过 `git describe --tags --always --dirty` 获取版本：恰好位于标签时显示标签（如 `v0.1`），标签之后的提交显示类似 `v0.1-3-ga2e373a`，没有标签时显示短提交号。发布标签需由管理员选定发布提交后创建，程序不固定版本号，也不自动创建标签；可用 `make build VERSION=v0.1.0` 指定发布版本。未提交的源码构建会显示 `-dirty` 和 `modified: true`；无法获取 Git 描述时版本回退为 `dev`，工作区修改标记显示 `unknown`。直接 `go build` 的版本为 `dev`、构建时间为 `unknown`。
 
 命令输出 `code`、`id` 和 `expires`。把完整 `code` 发给用户，例如 `ab01234567`；保留 `id` 以便撤销。明文访问码只在创建时返回，不写入日志；`status` 也不能找回它。代码固定为别名加八位安全随机数字，保留前导零，成功登录一次即失效。一个目录可以生成多张独立访问码。
 

@@ -12,7 +12,7 @@
 
 可直接给新会话的提示：
 
-> 请先阅读当前目录的 SESSION_STATE.md、AGENTS.md 和 README.md，检查 Git 状态后继续。项目是 Go 标准库实现的 Filegate，所有临时文件放仓库 tmp/，提交采用 Linux kernel 风格且不要 Signed-off-by。上传功能与 HTML 渲染预览尚未实施；最近已提交控制台/文件双输出、轮转及保留期限日志；最新 CLI 已把操作改成普通子命令，选项仍用双横线。请根据我接下来的要求推进。
+> 请先阅读当前目录的 SESSION_STATE.md、AGENTS.md 和 README.md，检查 Git 状态后继续。项目是 Go 标准库实现的 Filegate，所有临时文件放仓库 tmp/，提交采用 Linux kernel 风格且不要 Signed-off-by。上传功能与 HTML 渲染预览尚未实施；最近已提交控制台/文件双输出、轮转及保留期限日志；最新 CLI 已把操作改成普通子命令，选项仍用双横线；最新版本显示仅去掉单独的长哈希行，保留 git describe。请根据我接下来的要求推进。
 
 ## 2. 项目目标与已确认约束
 
@@ -34,19 +34,19 @@
 整理本文时分支为 `master`，最新功能提交（文档提交之前的基线）为：
 
 ```text
-6266aa6d1ed813924bc84c68042c40bd7ef4a1f5
-logging: Add colored console output and rotating file logs
+a2e373a3e0902d9f6041f0ed3db16b6b2fc7ba92
+cli: Use bare subcommands for actions
 ```
 
-2026-10-23 CLI 子命令调整开始前实际 HEAD 为 `6266aa6`，工作区干净。日志功能及文档维护规则已提交；“操作去掉双横线、选项保持不变”改动和相关文档随本次 CLI 提交保存。恢复时须用 `git status`、`git log -1` 核对实际状态。
+2026-10-23 版本显示调整开始前实际 HEAD 为 `a2e373a`，工作区干净。此前尝试固定 v0.1 并拼接短哈希的未提交方案已撤回；最终仅移除独立长哈希行，保留原 Git 版本来源；相关代码、测试及文档随本次版本输出提交保存。恢复时须用 `git status`、`git log -1` 核对实际状态。
 
-最近一次已提交功能基线的二进制曾输出如下（CLI 开发已重新构建，当前实际版本请运行 `--version` 核对）：
+最近一次已提交功能基线的二进制曾输出如下（版本显示调整已重新构建，当前实际版本请运行 `--version` 核对）：
 
 ```text
-filegate 6266aa6
-commit: 6266aa6d1ed813924bc84c68042c40bd7ef4a1f5
+filegate a2e373a
+commit: a2e373a3e0902d9f6041f0ed3db16b6b2fc7ba92
 modified: false
-built: 2026-10-23T12:41:41Z
+built: 2026-10-23T12:50:50Z
 go: go1.25.2
 platform: linux/amd64
 ```
@@ -57,6 +57,7 @@ platform: linux/amd64
 
 | 提交 | 内容 |
 | --- | --- |
+| `a2e373a` | 操作改为普通子命令、选项继续使用双横线 |
 | `6266aa6` | 彩色 console、轮转文件日志、保留期限及访问记录 |
 | `6b195a7` | 文档同步维护规则 |
 | `8d2989e` | 保存恢复文档并在贡献指南中添加入口 |
@@ -70,6 +71,12 @@ platform: linux/amd64
 | `f543a75` | `--version` 与构建元数据 |
 | `c86ef1c` | `-s -w` 精简二进制 |
 | `4b84d86` | 首个可用实现 |
+
+### 当前版本显示调整
+
+用户确认采用最小改动：撤回固定 `v0.1` 和手工拼接版本的方案，保留 Makefile 原有 `git describe --tags --always --dirty`；仅删除 `--version` 的独立 `commit:` 长哈希行和不再使用的读取逻辑，其他元数据保留。启动日志、版本默认值 `dev` 和 Makefile 均不改。
+
+用户认为当前发布版本是 v0.1，但仓库当前没有标签。尚未创建发布标签，需管理员选定发布提交后再决定。原逻辑在标签上只显示标签，在标签之后显示标签+提交数量+短哈希，没有标签时退回短哈希，有未提交改动时加 `-dirty`；不增加 `--long` 或其他 Git 参数。上述旧二进制快照里的 `commit:` 仅供历史参考。
 
 ## 4. 源码地图
 
@@ -298,7 +305,9 @@ env TMPDIR="$PWD/tmp/test-tmp" \
     -fuzz '^FuzzStripJSONComments$' -fuzztime=3s -parallel=2
 ```
 
-- 本轮 CLI 调整：操作改为子命令，选项双横线保留；默认值与业务权限不变。已更新解析测试、初始化输出、帮助与使用示例。构建、go vet、无 socket 的竞争检测套件及二进制子命令烟雾检查通过；跳过 TestAdminSocketAndLock，未启动真实服务做管理通信测试。
+- 已提交的 CLI 调整：操作改为子命令，选项双横线保留；默认值与业务权限不变。已更新解析测试、初始化输出、帮助与使用示例。构建、go vet、无 socket 的竞争检测套件及二进制子命令烟雾检查通过；跳过 TestAdminSocketAndLock，未启动真实服务做管理通信测试。
+
+- 本轮版本最小调整：构建、CLI 竞争检测、make vet 和实际 --version 输出检查通过；未改动鉴权或网络逻辑，未重跑完整服务测试。
 
 ## 8. 最近讨论、尚未实施
 
