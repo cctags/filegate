@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,15 +36,28 @@ const example = `{
 `
 
 func run() error {
+	return runArgs(os.Args[1:], os.Stdout)
+}
+
+func runArgs(args []string, output io.Writer) error {
 	fs := flag.NewFlagSet("filegate", flag.ContinueOnError)
 	cfgPath := fs.String("config", "config.json", "configuration path (before command)")
+	showVersion := fs.Bool("version", false, "print version and build information")
 	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: filegate --version")
 		fmt.Fprintln(os.Stderr, "Usage: filegate [-config path] init|serve|status|code ALIAS [TTL]|revoke ID|logout ALIAS|block IP_OR_CIDR|unblock IP_OR_CIDR")
 	}
-	if e := fs.Parse(os.Args[1:]); e != nil {
+	if e := fs.Parse(args); e != nil {
 		return e
 	}
-	args := fs.Args()
+	args = fs.Args()
+	if *showVersion {
+		if len(args) != 0 {
+			return errors.New("--version does not take a command")
+		}
+		_, err := fmt.Fprintln(output, versionInfo())
+		return err
+	}
 	if len(args) == 0 {
 		fs.Usage()
 		return errors.New("command required")
@@ -87,7 +101,7 @@ func run() error {
 				return ce
 			}
 		}
-		fmt.Println("Created configuration and directories. Start with: filegate -config", *cfgPath, "serve")
+		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate -config", *cfgPath, "serve")
 		return nil
 	}
 	c, e := gate.Load(*cfgPath)
@@ -121,7 +135,7 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(output)
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)
 	}
