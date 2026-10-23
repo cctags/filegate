@@ -84,8 +84,8 @@ func TestLoginIsolationAndFiles(t *testing.T) {
 		t.Error("sibling directory disclosed")
 	}
 	w := request(a, "GET", "/file/test.html", "", cookie)
-	if !strings.HasPrefix(w.Header().Get("Content-Disposition"), "attachment") {
-		t.Error("HTML must download")
+	if !strings.HasPrefix(w.Header().Get("Content-Disposition"), "inline") || w.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Error("HTML must be displayed as plain source text")
 	}
 	r := httptest.NewRequest("GET", "/file/hello.txt", nil)
 	r.RemoteAddr = "192.0.2.1:1"

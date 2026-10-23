@@ -3,6 +3,7 @@ package gate
 import (
 	"crypto/hmac"
 	"html/template"
+	"io"
 	"log/slog"
 	"mime"
 	"net"
@@ -19,7 +20,7 @@ import (
 
 const cookieName = "filegate_session"
 
-var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>文件访问</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main>{{if .Login}}<h1>访问文件</h1><p class="muted">请输入管理员提供的一次性访问码。</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">访问码</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="例如 ab12345678"></p><button>进入目录</button></form>{{else}}<header><h1>文件目录 · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>退出</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ 上级目录</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} 字节</span>{{end}}</li>{{else}}<li class="muted">目录为空</li>{{end}}</ul>{{end}}</main></html>`))
+var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>文件访问</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main>{{if .Login}}<h1>访问文件</h1><p class="muted">请输入管理员提供的一次性访问码。</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">访问码</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="例如 ab12345678"></p><button>进入目录</button></form>{{else}}<header><h1>文件目录 · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>退出</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ 上级目录</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} 字节</span> · <a href="{{.URL}}?download=1">下载</a>{{end}}</li>{{else}}<li class="muted">目录为空</li>{{end}}</ul>{{end}}</main></html>`))
 
 type entry struct {
 	Name, URL string
@@ -366,14 +367,19 @@ func (a *App) file(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Only explicitly permitted passive formats are displayed inline.
-	ext := strings.ToLower(path.Ext(name))
-	types := map[string]string{".txt": "text/plain; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg"}
-	contentType, inline := types[ext]
-	if !inline {
-		contentType = "application/octet-stream"
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": info.Name()}))
+	var sample [512]byte
+	n, err := f.ReadAt(sample[:], 0)
+	if err != nil && err != io.EOF {
+		slog.Error("read file preview header", "error", err)
+		http.Error(w, "无法读取文件", http.StatusInternalServerError)
+		return
 	}
+	contentType, inline := previewType(name, sample[:n])
+	disposition := "inline"
+	if !inline || r.URL.Query().Get("download") == "1" {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": info.Name()}))
 	w.Header().Set("Content-Type", contentType)
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }
