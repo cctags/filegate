@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -40,37 +39,24 @@ func run() error {
 }
 
 func runArgs(args []string, output io.Writer) error {
-	fs := flag.NewFlagSet("filegate", flag.ContinueOnError)
-	cfgPath := fs.String("config", "config.json", "configuration path (before command)")
-	showVersion := fs.Bool("version", false, "print version and build information")
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: filegate --version")
-		fmt.Fprintln(os.Stderr, "Usage: filegate [-config path] init|serve|status|code ALIAS [TTL]|revoke ID|logout ALIAS|block IP_OR_CIDR|unblock IP_OR_CIDR")
+	opts, err := parseOptions(args)
+	if err != nil {
+		return err
 	}
-	if e := fs.Parse(args); e != nil {
-		return e
+	if opts.action.Action == "help" {
+		_, err := fmt.Fprint(output, usage)
+		return err
 	}
-	args = fs.Args()
-	if *showVersion {
-		if len(args) != 0 {
-			return errors.New("--version does not take a command")
-		}
+	if opts.action.Action == "version" {
 		_, err := fmt.Fprintln(output, versionInfo())
 		return err
 	}
-	if len(args) == 0 {
-		fs.Usage()
-		return errors.New("command required")
-	}
-	if args[0] == "init" {
-		if len(args) != 1 {
-			return errors.New("init takes no arguments")
-		}
-		base := filepath.Dir(*cfgPath)
+	if opts.action.Action == "init" {
+		base := filepath.Dir(opts.config)
 		if e := os.MkdirAll(base, 0700); e != nil {
 			return e
 		}
-		f, e := os.OpenFile(*cfgPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		f, e := os.OpenFile(opts.config, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if e != nil {
 			return e
 		}
@@ -101,37 +87,15 @@ func runArgs(args []string, output io.Writer) error {
 				return ce
 			}
 		}
-		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate -config", *cfgPath, "serve")
+		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate --config", opts.config, "--serve")
 		return nil
 	}
-	c, e := gate.Load(*cfgPath)
+	c, e := gate.Load(opts.config)
 	if e != nil {
 		return e
 	}
-	if args[0] != "serve" {
-		r := gate.Request{Action: args[0]}
-		switch r.Action {
-		case "status":
-			if len(args) != 1 {
-				return errors.New("status takes no arguments")
-			}
-		case "code":
-			if len(args) < 2 || len(args) > 3 {
-				return errors.New("usage: code ALIAS [TTL]")
-			}
-			r.Value = args[1]
-			if len(args) == 3 {
-				r.TTL = args[2]
-			}
-		case "revoke", "logout", "block", "unblock":
-			if len(args) != 2 {
-				return errors.New("command requires one argument")
-			}
-			r.Value = args[1]
-		default:
-			return errors.New("unknown command")
-		}
-		out, e := gate.Call(c, r)
+	if opts.action.Action != "serve" {
+		out, e := gate.Call(c, opts.action)
 		if e != nil {
 			return e
 		}
@@ -139,9 +103,7 @@ func runArgs(args []string, output io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)
 	}
-	if len(args) != 1 {
-		return errors.New("serve takes no arguments")
-	}
+
 	lock, e := gate.Lock(c)
 	if e != nil {
 		return e

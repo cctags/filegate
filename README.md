@@ -6,49 +6,55 @@
 
 ```bash
 make build
-./tmp/filegate -config tmp/demo/config.json init
+./tmp/filegate --config tmp/demo/config.json --init
 # 把需要分享的文件放进 tmp/demo/content/ab/ 或 cd/
-./tmp/filegate -config tmp/demo/config.json serve
+./tmp/filegate --config tmp/demo/config.json --serve
 ```
 
 浏览器访问 `http://服务器IP:8080`。另开终端，以服务运行用户执行：
 
 ```bash
 # 使用配置中的默认有效期（初始为 10 分钟）
-./tmp/filegate -config tmp/demo/config.json code ab
+./tmp/filegate --config tmp/demo/config.json --code ab
 # 本次有效期覆盖为 30 分钟
-./tmp/filegate -config tmp/demo/config.json code ab 30m
+./tmp/filegate --config tmp/demo/config.json --code ab --ttl 30m
 ```
 
-排查问题时运行 `./tmp/filegate --version`，提供版本、Git 提交、工作区修改标记、UTC 构建时间、Go 版本和目标平台。此命令不需要配置文件或正在运行的服务，也支持 `-version`。`make build` 默认使用 Git 标签/提交描述作为版本；可用 `make build VERSION=v0.1.0` 指定发布版本。未提交的源码构建会显示 `-dirty` 和 `modified: true`；不在 Git 仓库中构建时提交信息显示 `unknown`。直接 `go build` 的版本为 `dev`、构建时间为 `unknown`。
+排查问题时运行 `./tmp/filegate --version`，提供版本、Git 提交、工作区修改标记、UTC 构建时间、Go 版本和目标平台。此命令不需要配置文件或正在运行的服务。`make build` 默认使用 Git 标签/提交描述作为版本；可用 `make build VERSION=v0.1.0` 指定发布版本。未提交的源码构建会显示 `-dirty` 和 `modified: true`；不在 Git 仓库中构建时提交信息显示 `unknown`。直接 `go build` 的版本为 `dev`、构建时间为 `unknown`。
 
-命令输出 `code`、`id` 和 `expires`。把完整 `code` 发给用户，例如 `ab01234567`；保留 `id` 以便撤销。明文访问码只在创建时返回，不写入日志；`status` 也不能找回它。代码固定为别名加八位安全随机数字，保留前导零，成功登录一次即失效。一个目录可以生成多张独立访问码。
+命令输出 `code`、`id` 和 `expires`。把完整 `code` 发给用户，例如 `ab01234567`；保留 `id` 以便撤销。明文访问码只在创建时返回，不写入日志；`--status` 也不能找回它。代码固定为别名加八位安全随机数字，保留前导零，成功登录一次即失效。一个目录可以生成多张独立访问码。
 
-`init` 不覆盖已有配置。所有相对配置路径相对于配置文件目录解析。构建产物、Go 缓存和测试临时文件均位于仓库的 `tmp/`，不进入版本控制。部署时可以把 `tmp/filegate` 复制到其他位置，另行初始化运行目录。
+`--init` 不覆盖已有配置。所有相对配置路径相对于配置文件目录解析。构建产物、Go 缓存和测试临时文件均位于仓库的 `tmp/`，不进入版本控制。部署时可以把 `tmp/filegate` 复制到其他位置，另行初始化运行目录。
+
+## 命令行选项
+
+运行 `./tmp/filegate --help` 查看全部选项。每次选择一个操作，例如 `--serve`、`--code ab` 或 `--status`；配置使用 `--config PATH`，访问码有效期使用 `--ttl 30m`。选项顺序不限，带值选项也支持 `--config=PATH` 和 `--ttl=30m`。重复选项、多个操作、缺失值和额外位置参数均会报错。
+
+所有命令统一使用双横线长选项，原来的 `serve`、`code ab 30m`、`-config`、`-version` 等写法不再支持，已有脚本需相应更新。
 
 ## 本机管理
 
 所有管理命令通过权限为 `0600` 的 Unix socket 与正在运行的服务通信；不提供 Web 管理页面或 HTTP 管理接口。需使用同一系统用户或 root，且服务必须正在运行。
 
 ```bash
-./tmp/filegate -config tmp/demo/config.json status
-./tmp/filegate -config tmp/demo/config.json revoke 访问码ID
-./tmp/filegate -config tmp/demo/config.json logout ab
-./tmp/filegate -config tmp/demo/config.json block 203.0.113.25
-./tmp/filegate -config tmp/demo/config.json block 198.51.100.0/24
-./tmp/filegate -config tmp/demo/config.json unblock 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json --status
+./tmp/filegate --config tmp/demo/config.json --revoke 访问码ID
+./tmp/filegate --config tmp/demo/config.json --logout ab
+./tmp/filegate --config tmp/demo/config.json --block 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json --block 198.51.100.0/24
+./tmp/filegate --config tmp/demo/config.json --unblock 203.0.113.25
 ```
 
-- `revoke` 撤销尚未使用的码；已登录用户请使用 `logout 别名`，撤销该目录所有会话。
-- `block` 永久封禁单个 IP 或 CIDR 网段，同时撤销来源 IP 匹配的现有会话。
-- `unblock` 删除完全匹配的永久黑名单条目，并清除覆盖范围内的自动封禁。若还有更大的黑名单网段覆盖此 IP，仍然禁止访问。失败计数保留，继续失败可能再次封禁。
+- `--revoke` 撤销尚未使用的码；已登录用户请使用 `--logout 别名`，撤销该目录所有会话。
+- `--block` 永久封禁单个 IP 或 CIDR 网段，同时撤销来源 IP 匹配的现有会话。
+- `--unblock` 删除完全匹配的永久黑名单条目，并清除覆盖范围内的自动封禁。若还有更大的黑名单网段覆盖此 IP，仍然禁止访问。失败计数保留，继续失败可能再次封禁。
 - 黑名单也可直接编辑 `blacklist.txt`，一行一个 IP/CIDR，支持 `#` 注释，每次请求重新读取。建议用临时文件加重命名更新，避免读到半写文件。修改不需要重启；文件缺失或格式错误时拒绝全部 Web 请求并记录错误，修复文件即可恢复。
 - 手动编辑黑名单阻止后续请求；已开始的传输不会立即中断。直接编辑不会主动清除内存中的全部相关会话，需要彻底撤销时使用命令。
 - IPv4、IPv6 均支持；IPv4 映射地址的 CIDR 请使用普通 IPv4 表示法。
 
 ## 配置
 
-`init` 生成的配置示例：
+`--init` 生成的配置示例：
 
 ```json
 {
