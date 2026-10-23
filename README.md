@@ -103,6 +103,14 @@ make build
 
 ## 开发与验证
 
+### 登录提示“无效请求来源”
+
+此提示来自登录之前的来源检查，与访问码是否正确无关，也不会消耗访问码或增加输错计数。旧版页面的 `Referrer-Policy: no-referrer` 会使普通表单 POST 发送 `Origin: null`，进而被自身的来源检查拒绝。已改为 `same-origin`，保留来源校验并避免向其他来源发送 Referer。更新程序、重启服务后，请重新打开或刷新登录页，再提交表单；不要直接重新提交旧页面的 POST。
+
+若仍失败，查看日志 `request origin rejected` 中的 `host`、`origin`、`https`，检查是否经过代理修改地址或终止 HTTPS。日志不会记录访问码、Cookie 或请求正文。输入框需要填写生成命令返回的完整 `code`，不是用于撤销的 `id`。
+
+### 构建与测试
+
 ```bash
 make test   # 并发竞争检测及安全/功能测试，需要本机 C 编译器供 race 使用
 make vet

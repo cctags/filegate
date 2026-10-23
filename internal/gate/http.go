@@ -75,7 +75,9 @@ func (a *App) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "no-referrer")
+		// no-referrer makes browsers send Origin: null on ordinary form POSTs,
+		// conflicting with the same-origin check used by login and logout.
+		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		ip, e := clientIP(r)
@@ -102,6 +104,9 @@ func (a *App) Handler() http.Handler {
 			return
 		}
 		if r.Method == "POST" && !sameOrigin(r) {
+			slog.Warn("request origin rejected", "ip", ip.String(), "host", r.Host,
+				"origin", r.Header.Get("Origin"), "fetch_site", r.Header.Get("Sec-Fetch-Site"),
+				"https", r.TLS != nil)
 			http.Error(w, "无效请求来源", 403)
 			return
 		}
