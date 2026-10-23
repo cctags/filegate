@@ -6,57 +6,57 @@
 
 ```bash
 make build
-./tmp/filegate --config tmp/demo/config.json --init
+./tmp/filegate --config tmp/demo/config.json init
 # 把需要分享的文件放进 tmp/demo/content/ab/、cd/ 或 文件夹/
-./tmp/filegate --config tmp/demo/config.json --serve
+./tmp/filegate --config tmp/demo/config.json serve
 ```
 
 浏览器访问 `http://服务器IP:8080`。另开终端，以服务运行用户执行：
 
 ```bash
 # 使用配置中的默认有效期（初始为 10 分钟）
-./tmp/filegate --config tmp/demo/config.json --code ab
+./tmp/filegate --config tmp/demo/config.json code ab
 # 本次有效期覆盖为 30 分钟
-./tmp/filegate --config tmp/demo/config.json --code ab --ttl 30m
+./tmp/filegate --config tmp/demo/config.json code ab --ttl 30m
 ```
 
 排查问题时运行 `./tmp/filegate --version`，提供版本、Git 提交、工作区修改标记、UTC 构建时间、Go 版本和目标平台。此命令不需要配置文件或正在运行的服务。`make build` 默认使用 Git 标签/提交描述作为版本；可用 `make build VERSION=v0.1.0` 指定发布版本。未提交的源码构建会显示 `-dirty` 和 `modified: true`；不在 Git 仓库中构建时提交信息显示 `unknown`。直接 `go build` 的版本为 `dev`、构建时间为 `unknown`。
 
-命令输出 `code`、`id` 和 `expires`。把完整 `code` 发给用户，例如 `ab01234567`；保留 `id` 以便撤销。明文访问码只在创建时返回，不写入日志；`--status` 也不能找回它。代码固定为别名加八位安全随机数字，保留前导零，成功登录一次即失效。一个目录可以生成多张独立访问码。
+命令输出 `code`、`id` 和 `expires`。把完整 `code` 发给用户，例如 `ab01234567`；保留 `id` 以便撤销。明文访问码只在创建时返回，不写入日志；`status` 也不能找回它。代码固定为别名加八位安全随机数字，保留前导零，成功登录一次即失效。一个目录可以生成多张独立访问码。
 
-`--init` 不覆盖已有配置。所有相对配置路径相对于配置文件目录解析。构建产物、Go 缓存和测试临时文件均位于仓库的 `tmp/`，不进入版本控制。部署时可以把 `tmp/filegate` 复制到其他位置，另行初始化运行目录。
+`init` 不覆盖已有配置。所有相对配置路径相对于配置文件目录解析。构建产物、Go 缓存和测试临时文件均位于仓库的 `tmp/`，不进入版本控制。部署时可以把 `tmp/filegate` 复制到其他位置，另行初始化运行目录。
 
 ## 命令行选项
 
-运行 `./tmp/filegate --help` 查看全部选项、默认值，以及初始化、使用默认中文目录、新增目录、编辑别名、发送 SIGHUP 和发码的完整示例。`--config` 默认使用当前工作目录的 `config.json`；省略 `--ttl` 时采用运行中服务的 `code_ttl`（初始化值为 `10m`），不是固定覆盖为 10 分钟。帮助中的配置默认值指 `--init` 创建的新配置，不代表当前已修改的配置。
+运行 `./tmp/filegate --help` 查看全部选项、默认值，以及初始化、使用默认中文目录、新增目录、编辑别名、发送 SIGHUP 和发码的完整示例。`--config` 默认使用当前工作目录的 `config.json`；省略 `--ttl` 时采用运行中服务的 `code_ttl`（初始化值为 `10m`），不是固定覆盖为 10 分钟。帮助中的配置默认值指 `init` 创建的新配置，不代表当前已修改的配置。
 
-每次选择一个操作，例如 `--serve`、`--code ab` 或 `--status`；配置使用 `--config PATH`，访问码有效期使用 `--ttl 30m`。选项顺序不限，带值选项也支持 `--config=PATH` 和 `--ttl=30m`。重复选项、多个操作、缺失值和额外位置参数均会报错。
+每次选择一个操作，例如 `serve`、`code ab` 或 `status`；配置使用 `--config PATH`，访问码有效期使用 `--ttl 30m`。选项可放在子命令及其参数之前、之间或之后，带值选项也支持 `--config=PATH` 和 `--ttl=30m`。重复选项、多个操作、缺失值和超出子命令要求的位置参数均会报错。
 
-所有命令统一使用双横线长选项，原来的 `serve`、`code ab 30m`、`-config`、`-version` 等写法不再支持，已有脚本需相应更新。
+操作使用普通子命令，例如 `serve`、`code ch`、`block IP`；选项仍使用 `--config`、`--ttl`，帮助和版本保留 `--help`、`--version`。不再接受旧的 `--serve`、`--code` 等操作写法，也不接受 `-config`、`-version` 或位置形式的有效期 `code ab 30m`，已有脚本需相应更新。
 
 ## 本机管理
 
 所有管理命令通过权限为 `0600` 的 Unix socket 与正在运行的服务通信；不提供 Web 管理页面或 HTTP 管理接口。需使用同一系统用户或 root，且服务必须正在运行。
 
 ```bash
-./tmp/filegate --config tmp/demo/config.json --status
-./tmp/filegate --config tmp/demo/config.json --revoke 访问码ID
-./tmp/filegate --config tmp/demo/config.json --logout ab
-./tmp/filegate --config tmp/demo/config.json --block 203.0.113.25
-./tmp/filegate --config tmp/demo/config.json --block 198.51.100.0/24
-./tmp/filegate --config tmp/demo/config.json --unblock 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json status
+./tmp/filegate --config tmp/demo/config.json revoke 访问码ID
+./tmp/filegate --config tmp/demo/config.json logout ab
+./tmp/filegate --config tmp/demo/config.json block 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json block 198.51.100.0/24
+./tmp/filegate --config tmp/demo/config.json unblock 203.0.113.25
 ```
 
-- `--revoke` 撤销尚未使用的码；已登录用户请使用 `--logout 别名`，撤销该目录所有会话。
-- `--block` 永久封禁单个 IP 或 CIDR 网段，同时撤销来源 IP 匹配的现有会话。
-- `--unblock` 删除完全匹配的永久黑名单条目，并清除覆盖范围内的自动封禁。若还有更大的黑名单网段覆盖此 IP，仍然禁止访问。失败计数保留，继续失败可能再次封禁。
+- `revoke` 撤销尚未使用的码；已登录用户请使用 `logout 别名`，撤销该目录所有会话。
+- `block` 永久封禁单个 IP 或 CIDR 网段，同时撤销来源 IP 匹配的现有会话。
+- `unblock` 删除完全匹配的永久黑名单条目，并清除覆盖范围内的自动封禁。若还有更大的黑名单网段覆盖此 IP，仍然禁止访问。失败计数保留，继续失败可能再次封禁。
 - 黑名单也可直接编辑 `blacklist.txt`，一行一个 IP/CIDR，支持 `#` 注释，每次请求重新读取。建议用临时文件加重命名更新，避免读到半写文件。修改不需要重启；文件缺失或格式错误时拒绝全部 Web 请求并记录错误，修复文件即可恢复。
 - 手动编辑黑名单阻止后续请求；已开始的传输不会立即中断。直接编辑不会主动清除内存中的全部相关会话，需要彻底撤销时使用命令。
 - IPv4、IPv6 均支持；IPv4 映射地址的 CIDR 请使用普通 IPv4 表示法。
 
 ## 配置
 
-`--init` 生成的配置采用 JSONC 语法，文件名仍为 `config.json`。支持字段上方的 `//` 和 `/* … */` 注释，也能读取无注释的标准 JSON；可用 `--config config.jsonc` 指定其他文件名。不支持尾随逗号或 JSON5 扩展，未知字段仍会报错。
+`init` 生成的配置采用 JSONC 语法，文件名仍为 `config.json`。支持字段上方的 `//` 和 `/* … */` 注释，也能读取无注释的标准 JSON；可用 `--config config.jsonc` 指定其他文件名。不支持尾随逗号或 JSON5 扩展，未知字段仍会报错。
 
 ```jsonc
 {
@@ -115,7 +115,7 @@ make build
 }
 ```
 
-`directories` 的键是用户输入的别名（1–16 个小写英文字母），值是工作根目录内的相对目录，可以包含中文。例如 `"ch": "文件夹"`，生成时使用 `--code ch`。`--init` 会创建示例中的三个内容目录及 state、logs 目录；后续新增映射需先创建目录。不要配置互相嵌套、权限重叠的目录。时长使用 `30s`、`10m`、`8h` 等格式，必须为正数。
+`directories` 的键是用户输入的别名（1–16 个小写英文字母），值是工作根目录内的相对目录，可以包含中文。例如 `"ch": "文件夹"`，生成时使用 `code ch`。`init` 会创建示例中的三个内容目录及 state、logs 目录；后续新增映射需先创建目录。不要配置互相嵌套、权限重叠的目录。时长使用 `30s`、`10m`、`8h` 等格式，必须为正数。
 
 每个 IP 在 `failure_window` 内达到 `max_failures` 次错误，或一分钟超过 `attempts_per_minute` 次登录提交，自动封禁 `ban_duration`。成功登录重置错误次数，但不重置提交频率。所有 IP 合计还限制每分钟 1000 次登录提交。普通文件请求不会计入登录错误次数。
 
@@ -128,7 +128,7 @@ kill -HUP "$(pidof -s filegate)"
 # -1 与 -HUP 等价
 ```
 
-先确认目标 PID 对应 `--serve` 进程；存在多个实例时应明确指定 PID。旧版本程序不支持此信号，请先替换二进制并正常重启一次。
+先确认目标 PID 对应 `serve` 进程；存在多个实例时应明确指定 PID。旧版本程序不支持此信号，请先替换二进制并正常重启一次。
 
 - 可热更新：`directories`、`code_ttl`、`idle_timeout`、`max_session`、`failure_window`、`ban_duration`、`max_failures`、`attempts_per_minute`。
 - 需要重启：`listen`、`root`、`state_dir`、`blacklist` 路径、`logging` 全部字段、`tls_cert`、`tls_key`。更新证书文件内容也需要重启。二进制升级需要重新启动进程。
@@ -163,7 +163,7 @@ kill -HUP "$(pidof -s filegate)"
 - 启动时无法打开日志目录会拒绝启动；运行时文件写入或轮转失败，控制台继续记录，并最多每分钟输出一次文件日志错误。正常退出会同步并关闭文件。不要在运行中手工删除日志目录或用外部程序同时轮转活动文件。
 - 修改 `logging` 任意字段需重启；SIGHUP 会拒绝这类配置变更并保留原配置。管理命令仍向 stdout 返回 JSON，不单独打开文件日志；管理操作由服务进程记录。
 
-默认记录启动/停止、登录/退出、封禁、配置重载和管理操作。HTTP 访问日志包括 IP、方法、路径、响应状态、字节数、耗时和可识别的目录别名；文件请求还记录实际是否按附件返回以及是否显式要求下载。成功请求为 INFO，4xx 为 WARN，5xx 为 ERROR；`--status` 成功查询仅在 DEBUG 记录。
+默认记录启动/停止、登录/退出、封禁、配置重载和管理操作。HTTP 访问日志包括 IP、方法、路径、响应状态、字节数、耗时和可识别的目录别名；文件请求还记录实际是否按附件返回以及是否显式要求下载。成功请求为 INFO，4xx 为 WARN，5xx 为 ERROR；`status` 成功查询仅在 DEBUG 记录。
 
 访问日志省略查询字符串、请求正文、Cookie、Authorization 和会话标识；管理日志不保存访问码。来源检查日志只保留 Origin 的协议和主机，丢弃异常用户信息、路径与查询；Fetch-Site 只记录已知枚举值。日志中的文件路径仅说明发生了什么，不代表绕过权限读取内容。浏览器已下载的内容仍无法撤回。
 

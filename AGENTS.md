@@ -16,12 +16,12 @@ Keep caches and temporary files in repository `tmp/`, never `/tmp`. Keep runtime
 
 ## CLI & Local Operation
 
-Use double-dash long options; positional commands and single-dash options are unsupported:
+Use bare action commands with double-dash options. Keep `--help` and `--version` as options; reject prefixed actions such as `--serve` and single-dash options:
 
 ```bash
-./tmp/filegate --config tmp/demo/config.json --init
-./tmp/filegate --config tmp/demo/config.json --serve
-./tmp/filegate --config tmp/demo/config.json --code ab --ttl 30m
+./tmp/filegate --config tmp/demo/config.json init
+./tmp/filegate --config tmp/demo/config.json serve
+./tmp/filegate --config tmp/demo/config.json code ab --ttl 30m
 ./tmp/filegate --help
 ./tmp/filegate --version
 ```

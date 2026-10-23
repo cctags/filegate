@@ -128,7 +128,7 @@ func runArgs(args []string, output io.Writer) (returnErr error) {
 				return ce
 			}
 		}
-		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate --config", opts.config, "--serve")
+		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate --config", opts.config, "serve")
 		return nil
 	}
 	c, e := gate.Load(opts.config)

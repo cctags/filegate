@@ -27,7 +27,7 @@ func TestVersionWithoutConfiguration(t *testing.T) {
 
 func TestVersionRejectsCommand(t *testing.T) {
 	var out bytes.Buffer
-	if err := runArgs([]string{"--version", "--serve"}, &out); err == nil {
+	if err := runArgs([]string{"--version", "serve"}, &out); err == nil {
 		t.Fatal("--version must not start a command")
 	}
 	if out.Len() != 0 {

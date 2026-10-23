@@ -9,24 +9,25 @@ import (
 	"filegate/internal/gate"
 )
 
-const usage = `Usage: filegate [--config PATH] ACTION [OPTIONS]
+const usage = `Usage: filegate [OPTIONS] ACTION [ARGUMENT]
+       filegate --help | --version
 
 Choose exactly one action (no default action):
-  --init                 Create configuration and example directories;
+  init                   Create configuration and example directories;
                          never overwrite an existing configuration
-  --serve                Start the server in the foreground
-  --status               Show codes, bans and session count
-  --code ALIAS           Create a one-time code for a configured alias
-  --revoke ID            Revoke an unused code using its returned id
-  --logout ALIAS         Invalidate all sessions for a directory alias
-  --block IP_OR_CIDR     Add a permanent blacklist entry (no expiry)
-  --unblock IP_OR_CIDR   Remove an entry and matching temporary bans
-  --version              Print version and build information
-  --help                 Show this help
+  serve                  Start the server in the foreground
+  status                 Show codes, bans and session count
+  code ALIAS             Create a one-time code for a configured alias
+  revoke ID              Revoke an unused code using its returned id
+  logout ALIAS           Invalidate all sessions for a directory alias
+  block IP_OR_CIDR       Add a permanent blacklist entry (no expiry)
+  unblock IP_OR_CIDR     Remove an entry and matching temporary bans
 
 Options:
+  --help                 Show this help
+  --version              Print version and build information
   --config PATH          Default: config.json in the current working directory
-  --ttl DURATION         Only with --code; default: the running server's
+  --ttl DURATION         Only with code; default: the running server's
                          code_ttl setting (10m in a newly initialized config).
                          Override for this code only, e.g. 30s, 30m or 2h;
                          must be positive. Existing code expiries are unchanged.
@@ -40,9 +41,10 @@ Configuration accepts JSONC // and /* */ comments, or plain JSON, regardless
 of extension. The default filename remains config.json; --config config.jsonc
 is also supported. Trailing commas and JSON5 syntax are not supported.
 Options may appear in any order. Values accept --option VALUE or
---option=VALUE. Single-dash options and positional commands are not accepted.
+--option=VALUE, before or after the action. Actions use bare words (serve,
+code, etc.); prefixed actions such as --serve and single-dash options are rejected.
 
-Configuration defaults written by --init:
+Configuration defaults written by init:
   listen                 0.0.0.0:8080 (all IPv4 interfaces)
   root                   content
   state_dir              state
@@ -76,21 +78,21 @@ a restart. Blacklist file contents take effect without a signal.
 
 Examples:
   # 1. Initialize a NEW deployment (skip if its config already exists).
-  filegate --config tmp/demo/config.json --init
+  filegate --config tmp/demo/config.json init
   # Creates content/ab, content/cd, content/文件夹, state, logs and blacklist.txt
   # under tmp/demo/. config.json contains // explanations above key fields.
 
   # 2. Start the server. Keep this terminal open; use another for management.
-  filegate --config tmp/demo/config.json --serve
+  filegate --config tmp/demo/config.json serve
   # Defaults: browse http://SERVER_IP:8080; use the listen port from your config.
   # Colored levels appear on a terminal; plain logs go to tmp/demo/logs/filegate.log.
   # Redirected console output is uncolored unless logging.color is always.
   # Logs rotate at 10 MiB / UTC date changes; keep <=10 archives for <=7 days.
 
   # 3. Issue an access code for the existing ab directory.
-  filegate --config tmp/demo/config.json --code ab
-  filegate --config tmp/demo/config.json --code ab --ttl 30m
-  filegate --config tmp/demo/config.json --code ch --ttl 30m
+  filegate --config tmp/demo/config.json code ab
+  filegate --config tmp/demo/config.json code ab --ttl 30m
+  filegate --config tmp/demo/config.json code ch --ttl 30m
   # ch is the initialized alias for 文件夹.
   # Send the returned code (e.g. ab01234567) to the user, not the id.
   # The code allows one successful login; the session has separate timeouts.
@@ -103,24 +105,24 @@ Examples:
   # Merely creating the folder does not make it accessible.
 
   # 5. Reload the server after saving the configuration.
-  # For a single instance, first verify this is the --serve process:
+  # For a single instance, first verify this is the serve process:
   ps -C filegate -o pid,args
   kill -HUP "$(pidof -s filegate)"
   # With multiple instances, send HUP to the specific server PID instead.
   # Confirm "configuration reloaded" in the server log before issuing a code.
-  filegate --config tmp/demo/config.json --code docs --ttl 30m
+  filegate --config tmp/demo/config.json code docs --ttl 30m
   # Enter the returned docs-prefixed code in the browser to access documents.
   # Remapping/removing aliases revokes their codes and sessions;
   # unchanged aliases keep their authorizations.
 
   # 6. Inspect, revoke access, or manage the permanent blacklist.
-  filegate --config tmp/demo/config.json --status
-  filegate --config tmp/demo/config.json --revoke CODE_ID
-  filegate --config tmp/demo/config.json --logout docs
-  filegate --config tmp/demo/config.json --block 203.0.113.25
-  filegate --config tmp/demo/config.json --block 198.51.100.0/24
-  filegate --config tmp/demo/config.json --unblock 203.0.113.25
-  # Replace CODE_ID with the id returned at creation or shown by --status.
+  filegate --config tmp/demo/config.json status
+  filegate --config tmp/demo/config.json revoke CODE_ID
+  filegate --config tmp/demo/config.json logout docs
+  filegate --config tmp/demo/config.json block 203.0.113.25
+  filegate --config tmp/demo/config.json block 198.51.100.0/24
+  filegate --config tmp/demo/config.json unblock 203.0.113.25
+  # Replace CODE_ID with the id returned at creation or shown by status.
 `
 
 type options struct {
@@ -131,18 +133,23 @@ type options struct {
 func parseOptions(args []string) (options, error) {
 	opts := options{config: "config.json"}
 	seen := map[string]bool{}
+	var positional []string
 	fail := func(message string) (options, error) { return options{}, fmt.Errorf("%s; see --help", message) }
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if !strings.HasPrefix(arg, "-") {
+			positional = append(positional, arg)
+			continue
+		}
 		if !strings.HasPrefix(arg, "--") || arg == "--" {
-			return fail("expected a long option, got " + arg)
+			return fail("expected a double-dash option, got " + arg)
 		}
 		name, value, hasValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
 		takesValue := false
 		switch name {
-		case "config", "ttl", "code", "revoke", "logout", "block", "unblock":
+		case "config", "ttl":
 			takesValue = true
-		case "init", "serve", "status", "version", "help":
+		case "help", "version":
 		default:
 			return fail("unknown option --" + name)
 		}
@@ -171,18 +178,41 @@ func parseOptions(args []string) (options, error) {
 			opts.action.TTL = value
 		default:
 			if opts.action.Action != "" {
-				return fail("choose exactly one action")
+				return fail("choose either --help or --version")
 			}
 			opts.action.Action = name
-			opts.action.Value = value
 		}
 	}
-	if opts.action.Action == "" {
-		return fail("an action is required")
+	if opts.action.Action != "" {
+		if len(positional) != 0 {
+			return fail("--help and --version cannot be combined with an action")
+		}
+	} else {
+		if len(positional) == 0 {
+			return fail("an action is required")
+		}
+		opts.action.Action = positional[0]
+		required := 0
+		switch opts.action.Action {
+		case "init", "serve", "status":
+		case "code", "revoke", "logout", "block", "unblock":
+			required = 1
+		default:
+			return fail("unknown action " + positional[0])
+		}
+		if len(positional) != required+1 {
+			return fail(fmt.Sprintf("%s requires %d argument(s)", opts.action.Action, required))
+		}
+		if required == 1 {
+			if positional[1] == "" {
+				return fail(opts.action.Action + " requires a nonempty argument")
+			}
+			opts.action.Value = positional[1]
+		}
 	}
 	if seen["ttl"] {
 		if opts.action.Action != "code" {
-			return fail("--ttl requires --code")
+			return fail("--ttl requires the code action")
 		}
 		duration, err := time.ParseDuration(opts.action.TTL)
 		if err != nil || duration <= 0 {

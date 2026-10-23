@@ -12,7 +12,7 @@
 
 可直接给新会话的提示：
 
-> 请先阅读当前目录的 SESSION_STATE.md、AGENTS.md 和 README.md，检查 Git 状态后继续。项目是 Go 标准库实现的 Filegate，所有临时文件放仓库 tmp/，提交采用 Linux kernel 风格且不要 Signed-off-by。上传功能与 HTML 渲染预览尚未实施；最近已实现控制台/文件双输出、轮转及保留期限日志。请根据我接下来的要求推进。
+> 请先阅读当前目录的 SESSION_STATE.md、AGENTS.md 和 README.md，检查 Git 状态后继续。项目是 Go 标准库实现的 Filegate，所有临时文件放仓库 tmp/，提交采用 Linux kernel 风格且不要 Signed-off-by。上传功能与 HTML 渲染预览尚未实施；最近已提交控制台/文件双输出、轮转及保留期限日志；最新 CLI 已把操作改成普通子命令，选项仍用双横线。请根据我接下来的要求推进。
 
 ## 2. 项目目标与已确认约束
 
@@ -34,19 +34,19 @@
 整理本文时分支为 `master`，最新功能提交（文档提交之前的基线）为：
 
 ```text
-101b4c20dce8c3416142eb72c9fce9a656cb1874
-http: Prefer inline file previews and offer explicit downloads
+6266aa6d1ed813924bc84c68042c40bd7ef4a1f5
+logging: Add colored console output and rotating file logs
 ```
 
-功能基线之后，`8d2989e` 保存恢复文档，`6b195a7`（`docs: Require documentation updates during development`）提交文档维护规则。2026-10-23 开始日志功能前，实际 HEAD 为 `6b195a7`，工作区干净。本轮已实现日志双输出、轮转、保留期限及访问记录，相关代码和文档随本次日志功能提交保存。恢复时须用 `git status`、`git log -1` 核对实际状态。
+2026-10-23 CLI 子命令调整开始前实际 HEAD 为 `6266aa6`，工作区干净。日志功能及文档维护规则已提交；“操作去掉双横线、选项保持不变”改动和相关文档随本次 CLI 提交保存。恢复时须用 `git status`、`git log -1` 核对实际状态。
 
-最近一次已提交功能基线的二进制曾输出如下（日志开发已重新构建，当前实际版本请运行 `--version` 核对）：
+最近一次已提交功能基线的二进制曾输出如下（CLI 开发已重新构建，当前实际版本请运行 `--version` 核对）：
 
 ```text
-filegate 101b4c2
-commit: 101b4c20dce8c3416142eb72c9fce9a656cb1874
+filegate 6266aa6
+commit: 6266aa6d1ed813924bc84c68042c40bd7ef4a1f5
 modified: false
-built: 2026-10-23T09:41:20Z
+built: 2026-10-23T12:41:41Z
 go: go1.25.2
 platform: linux/amd64
 ```
@@ -57,6 +57,7 @@ platform: linux/amd64
 
 | 提交 | 内容 |
 | --- | --- |
+| `6266aa6` | 彩色 console、轮转文件日志、保留期限及访问记录 |
 | `6b195a7` | 文档同步维护规则 |
 | `8d2989e` | 保存恢复文档并在贡献指南中添加入口 |
 | `101b4c2` | 文件点击优先预览，独立下载链接 |
@@ -65,7 +66,7 @@ platform: linux/amd64
 | `c353af5` | SIGHUP 热重载目录与运行参数 |
 | `b01024f` | 修复来源策略导致浏览器表单被拒绝 |
 | `7690315` | 更新贡献者指南 |
-| `cdb6ec7` | 全部操作改为双横线长选项 |
+| `cdb6ec7` | 历史 CLI 曾全部使用双横线；已由本轮子命令调整替代 |
 | `f543a75` | `--version` 与构建元数据 |
 | `c86ef1c` | `-s -w` 精简二进制 |
 | `4b84d86` | 首个可用实现 |
@@ -100,28 +101,28 @@ make build
 ./tmp/filegate --version
 
 # 仅用于尚无配置的新部署；不会覆盖已有配置
-./tmp/filegate --config tmp/new-demo/config.json --init
+./tmp/filegate --config tmp/new-demo/config.json init
 
 # 实际已有部署
-./tmp/filegate --config tmp/demo/config.json --serve
+./tmp/filegate --config tmp/demo/config.json serve
 
 # 在另一个终端、以服务用户执行
-./tmp/filegate --config tmp/demo/config.json --code ab
-./tmp/filegate --config tmp/demo/config.json --code ab --ttl 30m
-./tmp/filegate --config tmp/demo/config.json --status
-./tmp/filegate --config tmp/demo/config.json --revoke CODE_ID
-./tmp/filegate --config tmp/demo/config.json --logout ab
-./tmp/filegate --config tmp/demo/config.json --block 203.0.113.25
-./tmp/filegate --config tmp/demo/config.json --block 198.51.100.0/24
-./tmp/filegate --config tmp/demo/config.json --unblock 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json code ab
+./tmp/filegate --config tmp/demo/config.json code ab --ttl 30m
+./tmp/filegate --config tmp/demo/config.json status
+./tmp/filegate --config tmp/demo/config.json revoke CODE_ID
+./tmp/filegate --config tmp/demo/config.json logout ab
+./tmp/filegate --config tmp/demo/config.json block 203.0.113.25
+./tmp/filegate --config tmp/demo/config.json block 198.51.100.0/24
+./tmp/filegate --config tmp/demo/config.json unblock 203.0.113.25
 ```
 
 - 使用返回的 `code` 登录；`id` 仅用于撤销，不能作为登录码。
-- 全部操作使用 `--long-option`，不支持旧的 `serve`、`code ab 30m`、`-config`、`-version`。
+- 操作使用普通子命令，如 `serve`、`code ch`；选项保留 `--config`、`--ttl`，帮助/版本保留 `--help`、`--version`。不支持旧的 `--serve`、`--code`、单横线选项或位置有效期 `code ab 30m`。选项可在子命令及参数之前、之间、之后。
 - 支持 `--option=value` 和任意选项顺序；每次恰好一个操作。
 - 管理命令通过状态目录内 `admin.sock` 与运行中的服务通信；不是 HTTP 管理 API。
 - Unix socket 权限 `0600`，状态目录 `0700`；需要同一系统用户或 root。
-- 管理命令要求服务运行；`--help`、`--version`、`--init` 不要求。
+- 管理命令要求服务运行；`--help`、`--version`、`init` 不要求。
 
 ### 默认配置与本地现有配置不同
 
@@ -131,7 +132,7 @@ make build
 {"ab": "ab", "cd": "cd", "ch": "文件夹"}
 ```
 
-`--init` 会创建三个内容目录以及 state、logs 目录。别名只能是 1–16 个小写英文字母，目录名字可以是中文。所有相对路径以配置文件所在目录为基准。
+`init` 会创建三个内容目录以及 state、logs 目录。别名只能是 1–16 个小写英文字母，目录名字可以是中文。所有相对路径以配置文件所在目录为基准。
 
 **2026-10-23 实际检查 `tmp/demo/config.json`：**
 
@@ -152,7 +153,7 @@ make build
 }
 ```
 
-旧部署保留 `cjk -> 中文测试`，后来仅把生成模板、帮助和测试示例改成 `ch -> 文件夹`，没有擅自重命名用户实际目录或改写现有配置。使用已有部署时应按实际别名 `--code cjk`，访问端口 `17342`；后续仍需重新核对配置。
+旧部署保留 `cjk -> 中文测试`，后来仅把生成模板、帮助和测试示例改成 `ch -> 文件夹`，没有擅自重命名用户实际目录或改写现有配置。使用已有部署时应按实际别名 `code cjk`，访问端口 `17342`；后续仍需重新核对配置。
 
 `tmp/jsonc-demo/config.json` 是本会话生成的、带字段上方中文 `//` 注释的新模板示例。`tmp/` 内还有测试、模糊测试和历史构建资料，均被 Git 忽略。不能依赖这些文件存在于新的克隆中。
 
@@ -179,14 +180,14 @@ make build
 - 默认 10 分钟内 5 次登录错误，或一分钟超过 10 次登录提交，自动封禁 15 分钟；还有固定的全局每分钟 1000 次登录提交限制。
 - 成功登录清除失败次数，但不清除请求频率计数。自动封禁持久化，失败计数仅内存保存。
 - 手动黑名单支持 IPv4、IPv6 和 CIDR，永久生效，每次请求重读；文件缺失或格式错误时拒绝全部 Web 请求。
-- 管理命令 `--block` 会撤销相关现有会话；手工编辑文件只保证后续匹配来源请求被拒绝，不主动遍历撤销全部会话。
+- 管理命令 `block` 会撤销相关现有会话；手工编辑文件只保证后续匹配来源请求被拒绝，不主动遍历撤销全部会话。
 - 单服务进程独占写状态，使用 flock 避免重复实例，写入同步后替换；不支持多实例共享状态。
 - 恢复旧状态备份可能重新启用历史访问码；恢复后需处理旧码。
 
 ### SIGHUP 热重载
 
 ```bash
-# 先确认 PID 是目标 --serve 进程；多个实例不要随便选一个
+# 先确认 PID 是目标 serve 进程；多个实例不要随便选一个
 ps -C filegate -o pid,args
 kill -HUP "$(pidof -s filegate)"
 ```
@@ -217,7 +218,7 @@ kill -HUP "$(pidof -s filegate)"
 - 全局 CSP 默认禁止脚本，X-Frame-Options/嵌入策略也限制 iframe；不要简单放开 HTML MIME 或脚本而忽略隔离。
 - 文件已下载后无法撤回；封禁/退出不会立刻中断已开始传输。
 
-### 日志（本轮新增）
+### 日志（已实现并提交）
 
 用户要求控制台带高亮、同时写文件，日志默认与 content/state 平级，并需要轮转和保留期限。已实现，仍只用标准库：
 
@@ -279,7 +280,7 @@ env TMPDIR="$PWD/tmp/test-tmp" \
 ```
 
 - 日志开发前的预览功能：上述竞争检测测试、`make vet`、构建通过。
-- 新日志功能：双输出/颜色/级别/属性分组、大小与跨日轮转、数量/时间保留、并发写入、权限和日志锁、符号链接隔离、文件失败仍输出 console、配置默认值与重载限制、访问日志和凭据不泄漏测试通过；采用同一无 socket 竞争检测命令。已在本机用强制颜色模式验证实际双输出并确认文件无 ANSI；未对真实 TTY 自动检测、长时间后台计时或实际部署进程进行端到端验证。
+- 日志功能：双输出/颜色/级别/属性分组、大小与跨日轮转、数量/时间保留、并发写入、权限和日志锁、符号链接隔离、文件失败仍输出 console、配置默认值与重载限制、访问日志和凭据不泄漏测试通过；采用同一无 socket 竞争检测命令。已在本机用强制颜色模式验证实际双输出并确认文件无 ANSI；未对真实 TTY 自动检测、长时间后台计时或实际部署进程进行端到端验证。
 - JSONC：配置生成/读取、字符串保护、错误语法、未知字段、大小限制、重载与失败保留旧配置测试通过；3 秒模糊测试约 41,565 次执行通过。
 - 重载：新增中文目录、删除/改映射、实际目录替换、持久化失败回滚、参数更新和并发读取测试通过；没有在用户实际服务上发信号做验证。
 - 预览：文本/媒体/HTML 源码、强制下载、中文和特殊字符文件名、无扩展名识别、Range、HEAD、授权和封禁测试通过；没有真实浏览器渲染/编解码验证。
@@ -296,6 +297,8 @@ env TMPDIR="$PWD/tmp/test-tmp" \
     go test ./internal/gate -run '^$' \
     -fuzz '^FuzzStripJSONComments$' -fuzztime=3s -parallel=2
 ```
+
+- 本轮 CLI 调整：操作改为子命令，选项双横线保留；默认值与业务权限不变。已更新解析测试、初始化输出、帮助与使用示例。构建、go vet、无 socket 的竞争检测套件及二进制子命令烟雾检查通过；跳过 TestAdminSocketAndLock，未启动真实服务做管理通信测试。
 
 ## 8. 最近讨论、尚未实施
 
