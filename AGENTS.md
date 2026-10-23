@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Filegate uses Go 1.25+, Linux, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. HTML/CSS is embedded in the handler template.
+Filegate uses Go 1.25+, Linux, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. `internal/logging/` provides colored console output, file rotation and retention. HTML/CSS is embedded in the handler template.
 
 ## Build, Test, and Development Commands
 
@@ -30,11 +30,11 @@ Choose one action per invocation. Administration uses a restricted Unix socket, 
 
 ## Coding Style & Testing
 
-Use idiomatic Go, `gofmt`, descriptive names, explicit errors, and `*_test.go` files with `Test...` functions. Test CLI validation, concurrent code consumption/reload, directory isolation, expiry, blacklisting, and persistence failures. Validate arguments before side effects. No coverage threshold is established.
+Use idiomatic Go, `gofmt`, descriptive names, explicit errors, and `*_test.go` files with `Test...` functions. Test CLI validation, concurrent code consumption/reload, directory isolation, expiry, blacklisting, persistence failures, log rotation/retention and credential redaction. Validate arguments before side effects. No coverage threshold is established.
 
 ## Security & State
 
-Preserve `os.Root` confinement, `crypto/rand` credentials, HMAC storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory; serialize state writes in one server process. Keep configuration, blacklist, state, and TLS private keys outside the content root. Never log credentials. Use HTTP only on trusted networks.
+Preserve `os.Root` confinement, `crypto/rand` credentials, HMAC storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory; serialize state writes in one server process. Keep configuration, blacklist, state, logs, and TLS private keys outside the content root. Never log credentials, bodies or query strings. Keep ANSI colors out of files. Logging changes require restart. Use HTTP only on trusted networks.
 
 SIGHUP reloads mappings and runtime limits. Validate before switching; persist revocations first. Keep old configuration on failure. Deployment paths require restart. Recheck authorization when opening files during reload.
 

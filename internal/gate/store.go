@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"filegate/internal/logging"
 )
 
 type Code struct {
@@ -50,6 +52,11 @@ type App struct {
 
 func token() string { b := make([]byte, 32); rand.Read(b); return hex.EncodeToString(b) }
 func New(c Config) (*App, error) {
+	if c.Logging.Directory != "" {
+		if err := logging.ValidateDirectory(c.Logging.Directory, c.Root); err != nil {
+			return nil, err
+		}
+	}
 	if err := os.MkdirAll(c.StateDir, 0700); err != nil {
 		return nil, err
 	}

@@ -73,7 +73,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", a.logout)
 	mux.HandleFunc("GET /browse/", a.browse)
 	mux.HandleFunc("GET /file/", a.file)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return a.accessLog(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// no-referrer makes browsers send Origin: null on ordinary form POSTs,
@@ -106,13 +106,13 @@ func (a *App) Handler() http.Handler {
 		}
 		if r.Method == "POST" && !sameOrigin(r) {
 			slog.Warn("request origin rejected", "ip", ip.String(), "host", r.Host,
-				"origin", r.Header.Get("Origin"), "fetch_site", r.Header.Get("Sec-Fetch-Site"),
+				"origin", logOrigin(r.Header.Get("Origin")), "fetch_site", logFetchSite(r.Header.Get("Sec-Fetch-Site")),
 				"https", r.TLS != nil)
 			http.Error(w, "无效请求来源", 403)
 			return
 		}
 		mux.ServeHTTP(w, r)
-	})
+	}))
 }
 func (a *App) session(r *http.Request) (Session, bool) {
 	a.mu.Lock()
@@ -262,6 +262,8 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	delete(a.sessions, c.Value)
 	a.mu.Unlock()
+	ip, _ := clientIP(r)
+	slog.Info("logout succeeded", "ip", ip.String(), "alias", s.Alias)
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/", 303)
 }

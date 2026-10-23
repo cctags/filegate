@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"filegate/internal/gate"
+	"filegate/internal/logging"
 )
 
 const example = `{
@@ -53,9 +54,22 @@ const example = `{
   "attempts_per_minute": 10,
 
   // 自动封禁的持续时间；管理员添加的永久黑名单不自动到期。
-  "ban_duration": "15m"
+  "ban_duration": "15m",
 
-  // 默认使用 HTTP。需要 HTTPS 时，在上一项后加逗号并启用：
+  // 日志目录与 content、state 平级，不能放在工作根目录内。
+  // 控制台高亮，文件不带颜色；按 UTC 日期或大小轮转。
+  // max_files 是归档数量，retention_days 是归档保留天数，两者同时生效。
+  // color 支持 auto、always、never；重定向时 auto 不着色。修改 logging 需重启。
+  "logging": {
+    "directory": "logs",
+    "level": "info",
+    "color": "auto",
+    "max_size_mb": 10,
+    "max_files": 10,
+    "retention_days": 7
+  }
+
+  // 默认使用 HTTP。需要 HTTPS 时，在 logging 对象后加逗号并启用：
   // "tls_cert": "server.crt",
   // "tls_key": "server.key"
 }
@@ -65,7 +79,7 @@ func run() error {
 	return runArgs(os.Args[1:], os.Stdout)
 }
 
-func runArgs(args []string, output io.Writer) error {
+func runArgs(args []string, output io.Writer) (returnErr error) {
 	opts, err := parseOptions(args)
 	if err != nil {
 		return err
@@ -95,7 +109,7 @@ func runArgs(args []string, output io.Writer) error {
 		if ce != nil {
 			return ce
 		}
-		for _, d := range []string{"content/ab", "content/cd", "content/文件夹", "state"} {
+		for _, d := range []string{"content/ab", "content/cd", "content/文件夹", "state", "logs"} {
 			if e = os.MkdirAll(filepath.Join(base, d), 0700); e != nil {
 				return e
 			}
@@ -136,6 +150,23 @@ func runArgs(args []string, output io.Writer) error {
 		return e
 	}
 	defer lock.Close()
+	logs, e := logging.Start(c.Logging, c.Root, os.Stderr)
+	if e != nil {
+		return e
+	}
+	previous := slog.Default()
+	slog.SetDefault(logs.Logger)
+	defer func() {
+		if returnErr != nil {
+			slog.Error("filegate stopped with error", "error", returnErr)
+		} else {
+			slog.Info("filegate stopped")
+		}
+		slog.SetDefault(previous)
+		if err := logs.Close(); err != nil {
+			logging.ConsoleError(os.Stderr, err)
+		}
+	}()
 	app, e := gate.New(c)
 	if e != nil {
 		return e
@@ -161,7 +192,7 @@ func runArgs(args []string, output io.Writer) error {
 			done <- server.ListenAndServe()
 		}
 	}()
-	slog.Info("filegate starting", "listen", c.Listen, "https", c.TLSCert != "", "admin", "local Unix socket only")
+	slog.Info("filegate starting", "listen", c.Listen, "https", c.TLSCert != "", "admin", "local Unix socket only", "log_directory", c.Logging.Directory, "version", version)
 	if c.TLSCert == "" {
 		slog.Warn("HTTP is unencrypted; use only on a trusted network")
 	}

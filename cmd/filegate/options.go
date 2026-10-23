@@ -55,6 +55,12 @@ Configuration defaults written by --init:
   ban_duration           15m
   max_failures           5
   attempts_per_minute    10
+  logging.directory      logs (alongside content/ and state/)
+  logging.level          info (debug, info, warn, error)
+  logging.color          auto (auto, always, never; honors NO_COLOR in auto)
+  logging.max_size_mb    10 (MiB per file; also rotates daily at UTC date change)
+  logging.max_files      10 archived files, excluding the active file
+  logging.retention_days 7 (older archives removed, even below count limit)
   tls_cert / tls_key     Not configured: HTTP, no certificate required
 
 These are initialization defaults, not overrides of an existing config.
@@ -65,18 +71,21 @@ Server signals:
   SIGHUP                 Reload directory mappings and runtime limits;
                          failure keeps the previous configuration
   SIGINT, SIGTERM        Shut down gracefully
-Changing the listener, root, state/blacklist paths or TLS settings requires
+Changing the listener, root, state/blacklist paths, logging or TLS requires
 a restart. Blacklist file contents take effect without a signal.
 
 Examples:
   # 1. Initialize a NEW deployment (skip if its config already exists).
   filegate --config tmp/demo/config.json --init
-  # Creates content/ab, content/cd, content/文件夹, state and blacklist.txt
+  # Creates content/ab, content/cd, content/文件夹, state, logs and blacklist.txt
   # under tmp/demo/. config.json contains // explanations above key fields.
 
   # 2. Start the server. Keep this terminal open; use another for management.
   filegate --config tmp/demo/config.json --serve
   # Defaults: browse http://SERVER_IP:8080; use the listen port from your config.
+  # Colored levels appear on a terminal; plain logs go to tmp/demo/logs/filegate.log.
+  # Redirected console output is uncolored unless logging.color is always.
+  # Logs rotate at 10 MiB / UTC date changes; keep <=10 archives for <=7 days.
 
   # 3. Issue an access code for the existing ab directory.
   filegate --config tmp/demo/config.json --code ab

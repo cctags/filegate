@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"filegate/internal/logging"
 )
 
 func setup(t *testing.T) *App {
@@ -33,6 +35,8 @@ func setup(t *testing.T) *App {
 		t.Fatal(e)
 	}
 	c := Config{Root: filepath.Join(base, "content"), StateDir: filepath.Join(base, "state"), Blacklist: filepath.Join(base, "blacklist.txt"), Directories: map[string]string{"ab": "ab", "cd": "cd"}, MaxFailures: 3, AttemptsPerMinute: 10, ttl: time.Minute, idle: time.Minute, max: time.Hour, window: time.Minute, ban: time.Minute}
+	c.Logging = logging.Defaults()
+	c.Logging.Directory = filepath.Join(base, "logs")
 	a, e := New(c)
 	if e != nil {
 		t.Fatal(e)

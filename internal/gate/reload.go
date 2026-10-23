@@ -39,6 +39,9 @@ func (a *App) Reload(path string) (ReloadResult, error) {
 			restart = append(restart, item.name)
 		}
 	}
+	if a.cfg.Logging != next.Logging {
+		restart = append(restart, "logging")
+	}
 	if len(restart) > 0 {
 		return result, fmt.Errorf("restart required for configuration changes: %s", strings.Join(restart, ", "))
 	}

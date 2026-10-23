@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"filegate/internal/logging"
 )
 
 type Config struct {
+	Logging                     logging.Config    `json:"logging"`
 	Listen                      string            `json:"listen"`
 	Root                        string            `json:"root"`
 	StateDir                    string            `json:"state_dir"`
@@ -31,7 +34,7 @@ type Config struct {
 }
 
 func Load(path string) (Config, error) {
-	var c Config
+	c := Config{Logging: logging.Defaults()}
 	f, err := os.Open(path)
 	if err != nil {
 		return c, err
@@ -73,6 +76,13 @@ func Load(path string) (Config, error) {
 	c.Root = resolve(c.Root)
 	c.StateDir = resolve(c.StateDir)
 	c.Blacklist = resolve(c.Blacklist)
+	if err := c.Logging.Validate(); err != nil {
+		return c, err
+	}
+	c.Logging.Directory = resolve(c.Logging.Directory)
+	if err := logging.ValidateDirectory(c.Logging.Directory, c.Root); err != nil {
+		return c, err
+	}
 	if rel, e := filepath.Rel(c.Root, resolve(filepath.Base(path))); e == nil && filepath.IsLocal(rel) {
 		return c, errors.New("configuration must be outside the content root")
 	}

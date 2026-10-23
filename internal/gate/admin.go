@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"net"
 	"os"
@@ -33,6 +34,33 @@ type Reply struct {
 
 // All state mutations are owned by the running server, including CLI requests.
 func (a *App) Admin(r Request) (out Reply) {
+	defer func() {
+		action := "unknown"
+		switch r.Action {
+		case "code", "revoke", "logout", "block", "unblock", "status":
+			action = r.Action
+		}
+		fields := []any{"action", action, "success", out.Error == ""}
+		if out.Error == "" {
+			switch action {
+			case "code", "logout":
+				fields = append(fields, "alias", r.Value)
+			case "block", "unblock":
+				network, _ := parsePrefix(r.Value)
+				fields = append(fields, "network", network.String())
+			case "revoke":
+				fields = append(fields, "code_id", r.Value)
+			}
+		}
+		if out.Error != "" {
+			slog.Warn("admin operation", fields...)
+		} else if action == "status" {
+			slog.Debug("admin operation", fields...)
+		} else {
+			slog.Info("admin operation", fields...)
+		}
+	}()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	now := time.Now()
