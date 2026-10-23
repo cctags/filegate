@@ -2,24 +2,40 @@
 
 ## Project Structure & Module Organization
 
-This workspace currently contains no application source, tests, assets, or build manifests. Establish the project structure with the first implementation and update this guide to match. Suggested directories are `src/` for application code, `tests/` for automated tests, `public/` for static assets, and `docs/` for supporting documentation. Group modules by feature as the application grows.
+Filegate is a Linux-only private file server using Go 1.25+ and the standard library exclusively. `cmd/filegate/` contains startup, long-option parsing, build metadata, and CLI tests. `internal/gate/` contains configuration, persistent state, Unix socket administration, HTTP handlers, and security tests. HTML/CSS lives in the handler’s template. `README.md` documents operation; `go.mod` has no third-party dependencies.
 
 ## Build, Test, and Development Commands
 
-No development, build, lint, or test commands are configured yet. When introducing a toolchain, document its prerequisites and exact setup and execution commands in `README.md`. Provide consistent entry points for local development, production builds, linting, and tests. Verify commands before adding them here; do not assume commands such as `npm test` are available.
+- `make build`: produce the static executable `tmp/filegate` with `CGO_ENABLED=0`, `-trimpath`, and `-s -w`; embed version and UTC build time.
+- `make build VERSION=v0.1.0`: override the release version.
+- `make test`: run all tests with the race detector; requires a C compiler and permission to create local Unix sockets.
+- `make vet`: run Go’s static checks.
+- `gofmt -w cmd internal`: format Go sources.
 
-## Coding Style & Naming Conventions
+Use the Makefile to keep build caches and temporary files under this repository’s `tmp/`; do not use `/tmp`. Keep runtime data and binaries untracked.
 
-Follow the conventions of the chosen language and framework. Configure a formatter and linter early, and use their configuration as the source of truth for indentation and formatting. Keep naming consistent within each module, use descriptive identifiers, and avoid mixing unrelated formatting changes into functional changes.
+## CLI & Local Operation
 
-## Testing Guidelines
+Use double-dash long options exclusively; positional commands and single-dash options are unsupported. Examples:
 
-No testing framework or coverage threshold is established. Add tests alongside new behavior once a framework is selected. Use descriptive test names that explain the expected outcome, follow the framework’s file naming convention, and prioritize critical workflows and regression cases. Document how to run individual tests and the complete suite.
+```bash
+./tmp/filegate --config tmp/demo/config.json --init
+./tmp/filegate --config tmp/demo/config.json --serve
+./tmp/filegate --config tmp/demo/config.json --code ab --ttl 30m
+./tmp/filegate --help
+./tmp/filegate --version
+```
+
+Choose exactly one action per invocation. Administration uses a permission-restricted local Unix socket, never a Web management interface.
+
+## Coding Style & Testing
+
+Follow idiomatic Go and `gofmt` indentation. Use descriptive names, explicit error handling, and `*_test.go` files with `Test...` functions. No coverage threshold is established. Test behavioral changes, especially CLI validation, concurrent code consumption, directory isolation, session expiry, blacklisting, and persistence failures. Validate arguments before side effects. Update help and README examples with CLI changes.
+
+## Security & State
+
+Preserve `os.Root` directory confinement, `crypto/rand` credentials, HMAC code storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory and state writes serialized by the single server process. Store configuration, blacklist, state, and TLS private keys outside the content root. Never log access codes, cookies, or session identifiers. HTTP is intended for trusted networks; HTTPS is optional.
 
 ## Commit & Pull Request Guidelines
 
-No Git history is available to establish existing commit conventions. Use concise, imperative commit subjects, such as `Add initial application scaffold`. Keep changes focused. Pull requests should describe the purpose, summarize behavior changes, link relevant issues, and report validation performed. Include screenshots for visible interface changes and explain any setup or configuration changes.
-
-## Security & Configuration
-
-Keep credentials and local configuration out of version control. Document required environment variables with placeholder values in an example configuration file. Review new dependencies and commit the selected package manager’s lockfile when applicable.
+Use Linux kernel-style subjects: `cli: Add version reporting` or `build: Strip debug information`. Explain the problem, change, and validation in the body. Do not add `Signed-off-by` trailers. Keep commits focused; describe relevant configuration or CLI compatibility changes in pull requests.
