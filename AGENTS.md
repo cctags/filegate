@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Filegate is a Linux-only file server using Go 1.25+ and the standard library exclusively. `cmd/filegate/` contains startup, long-option parsing, build metadata, and CLI tests. `internal/gate/` contains configuration/reload, persistent state, Unix socket administration, HTTP handlers, and security tests. HTML/CSS lives in the handler’s template. `README.md` documents operation; `SESSION_STATE.md` records development context and pending discussions.
+Filegate uses Go 1.25+, Linux, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. HTML/CSS is embedded in the handler template.
 
 ## Build, Test, and Development Commands
 
@@ -12,11 +12,11 @@ Filegate is a Linux-only file server using Go 1.25+ and the standard library exc
 - `make vet`: run Go’s static checks.
 - `gofmt -w cmd internal`: format Go sources.
 
-Use the Makefile to keep build caches and temporary files under this repository’s `tmp/`; do not use `/tmp`. Keep runtime data and binaries untracked.
+Keep caches and temporary files in repository `tmp/`, never `/tmp`. Keep runtime data and binaries untracked.
 
 ## CLI & Local Operation
 
-Use double-dash long options exclusively; positional commands and single-dash options are unsupported. Examples:
+Use double-dash long options; positional commands and single-dash options are unsupported:
 
 ```bash
 ./tmp/filegate --config tmp/demo/config.json --init
@@ -26,18 +26,22 @@ Use double-dash long options exclusively; positional commands and single-dash op
 ./tmp/filegate --version
 ```
 
-Choose exactly one action per invocation. Administration uses a permission-restricted local Unix socket, never a Web management interface.
+Choose one action per invocation. Administration uses a restricted Unix socket, never Web management.
 
 ## Coding Style & Testing
 
-Follow idiomatic Go and `gofmt`. Use descriptive names, error handling, and `*_test.go` files with `Test...` functions. No coverage threshold is established. Test CLI validation, concurrent code consumption/reload, directory isolation, session expiry, blacklisting, and persistence failures. Validate arguments before side effects. Update help and README examples with CLI changes.
+Use idiomatic Go, `gofmt`, descriptive names, explicit errors, and `*_test.go` files with `Test...` functions. Test CLI validation, concurrent code consumption/reload, directory isolation, expiry, blacklisting, and persistence failures. Validate arguments before side effects. No coverage threshold is established.
 
 ## Security & State
 
-Preserve `os.Root` directory confinement, `crypto/rand` credentials, HMAC code storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory and state writes serialized by the single server process. Store configuration, blacklist, state, and TLS private keys outside the content root. Never log access codes, cookies, or session identifiers. HTTP is intended for trusted networks; HTTPS is optional.
+Preserve `os.Root` confinement, `crypto/rand` credentials, HMAC storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory; serialize state writes in one server process. Keep configuration, blacklist, state, and TLS private keys outside the content root. Never log credentials. Use HTTP only on trusted networks.
 
 SIGHUP reloads mappings and runtime limits. Validate before switching; persist revocations first. Keep old configuration on failure. Deployment paths require restart. Recheck authorization when opening files during reload.
 
 ## Commit & Pull Request Guidelines
 
-Use Linux kernel-style subjects: `cli: Add version reporting` or `build: Strip debug information`. Explain the problem, change, and validation in the body. Do not add `Signed-off-by` trailers. Keep commits focused; describe relevant configuration or CLI compatibility changes in pull requests.
+Use Linux kernel-style subjects, e.g. `cli: Add version reporting`. Explain the problem, change, and validation. Do not add `Signed-off-by`. Keep commits focused; describe compatibility changes in pull requests.
+
+## Documentation Maintenance
+
+Read `SESSION_STATE.md` when resuming development. Before handing off or committing relevant changes, update `README.md` for behavior, configuration, CLI/help and examples; `AGENTS.md` for development rules; and `SESSION_STATE.md` for milestones, decisions, validation and pending work. Update only affected documents. Distinguish proposals from implemented behavior, record skipped checks, and never copy runtime secrets. Record commit references as dated baselines; verify actual HEAD with Git instead of embedding a document’s own commit hash.
