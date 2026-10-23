@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Filegate is a Linux-only file server using Go 1.25+ and the standard library exclusively. `cmd/filegate/` contains startup, long-option parsing, build metadata, and CLI tests. `internal/gate/` contains configuration/reload, persistent state, Unix socket administration, HTTP handlers, and security tests. HTML/CSS lives in the handler’s template. `README.md` documents operation.
+Filegate is a Linux-only file server using Go 1.25+ and the standard library exclusively. `cmd/filegate/` contains startup, long-option parsing, build metadata, and CLI tests. `internal/gate/` contains configuration/reload, persistent state, Unix socket administration, HTTP handlers, and security tests. HTML/CSS lives in the handler’s template. `README.md` documents operation; `SESSION_STATE.md` records development context and pending discussions.
 
 ## Build, Test, and Development Commands
 
