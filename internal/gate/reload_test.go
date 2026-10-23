@@ -66,14 +66,14 @@ func TestReloadAddsChineseDirectory(t *testing.T) {
 	file, c := reloadConfig(t, a)
 	cookie := access(t, a)
 	unused := createCode(t, a, "ab")
-	dir := filepath.Join(c.Root, "中文测试")
+	dir := filepath.Join(c.Root, "文件夹")
 	if e := os.Mkdir(dir, 0700); e != nil {
 		t.Fatal(e)
 	}
 	if e := os.WriteFile(filepath.Join(dir, "资料.txt"), []byte("中文内容"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	c.Directories = map[string]string{"ab": "ab", "cd": "cd", "cjk": "中文测试"}
+	c.Directories = map[string]string{"ab": "ab", "cd": "cd", "ch": "文件夹"}
 	writeReloadConfig(t, file, c)
 	result, e := a.Reload(file)
 	if e != nil {
@@ -88,7 +88,7 @@ func TestReloadAddsChineseDirectory(t *testing.T) {
 	if _, ok := a.state.Codes[unused.ID]; !ok {
 		t.Fatal("unchanged code revoked")
 	}
-	r := createCode(t, a, "cjk")
+	r := createCode(t, a, "ch")
 	chinese := loginCode(t, a, r.Code)
 	if response := request(a, "GET", "/file/资料.txt", "", chinese); response.Code != 200 || response.Body.String() != "中文内容" {
 		t.Fatalf("Chinese directory unavailable: %d %s", response.Code, response.Body.String())
