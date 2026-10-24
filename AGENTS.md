@@ -3,6 +3,7 @@
 ## Project Structure & Module Organization
 
 Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. `internal/logging/` provides colored console output, file rotation and retention. HTML/CSS is embedded in the handler template.
+`deploy/` contains the systemd unit and installation/operation guide; keep their paths and permissions aligned with the CLI and README.
 
 ## Build, Test, and Development Commands
 
@@ -37,6 +38,7 @@ Keep `check` read-only and independent of the server: reuse parsing, directory, 
 Keep `--help` concise; put command details in `ACTION --help` (also `--help=ACTION`), and references in `--help=config|examples|limits|all`. Help must work without configuration, services or side effects, including root's `serve --help`. Validate all arguments before help output. Use distinct colors for headings, commands, options, arguments, descriptions and shell comments only on terminals, respecting `NO_COLOR` and `TERM=dumb`; keep redirects plain and do not start a pager automatically. Stripping ANSI must preserve the exact text; quoted hashes and URL fragments are not comments.
 
 Production deployments use a dedicated non-login system user, normally `filegate`; development may use the developer account. Keep binaries and configuration administrator-owned, content read-only to the service, and state/logs writable. Blacklist replacement requires write access to its parent directory; prefer `state/blacklist.txt` in deployments. Reject `serve` with effective UID 0 after argument validation and before configuration or side effects; other actions remain available to root. Do not auto-drop privileges or require a specific non-root username.
+For systemd changes, verify the unit with `systemd-analyze verify` and distinguish static verification from actual service acceptance. Preserve IPv4/Unix sockets and write access only to deployment state/logs. Reload runs `check` then sends SIGHUP; signal delivery is not application reload acknowledgement. Do not install/enable services or alter real deployment data during repository tests.
 
 ## Coding Style & Testing
 

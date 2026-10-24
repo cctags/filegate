@@ -290,6 +290,14 @@ internal/gate/check.go 调用 Load、openDirectories 及与启动共用的状态
 
 验证：初次 make test 因沙箱禁止 Unix socket 失败，获准在沙箱外重跑后完整竞态测试通过；随后最后的错误脱敏调整已重跑相关 CLI 竞态回归及 make test-integration，全部通过。make vet、make build、check --help 和 git diff --check 通过。没有更改 Web/解析算法，不运行浏览器或额外 fuzz；不是发布验证。测试使用独立 tmp 资源，子进程由测试等待退出并清理，未启动浏览器，检查未留下测试 socket；保留构建缓存和 tmp/check-test.log、tmp/check-integration.log，不操作实际 tmp/demo 数据。README、AGENTS、CHANGELOG、测试指南和项目评估已同步。用户随后要求提交，本轮将相关实现、测试和文档一并提交，提交信息使用 `cli: Add read-only deployment checks`；未打标签或发布。
 
+### systemd 配套（2026-10-24）
+
+用户要求添加 systemd 相关实现；基线为 28ab6e9，开始时工作区干净。本轮只新增仓库内部署文件，不安装/启用实际服务或修改主机账户、配置、权限、端口及 tmp/demo。新增 deploy/filegate.service，固定使用 filegate 用户/组、/usr/local/bin/filegate 和 /srv/filegate/config.json；Type=exec，启动前 check，重载先 check 后向 $MAINPID 发 HUP，SIGTERM 优雅停止并在 30 秒后兜底终止，失败重启及启动频率限制，标准输出/错误接入 journal。ProtectSystem=strict 仅开放 state/logs 写入，保留 AF_INET/AF_UNIX，限制 capabilities、home、设备、内核/控制组写入及提权。
+
+deploy/README.md 提供新部署完整流程及已有部署迁移注意事项：先创建非登录账号，新部署初始化后迁移黑名单到 state/blacklist.txt，固定管理员持有配置/二进制/只读内容以及服务用户可写 state/logs；安装、验证、enable/start/status、管理、reload/restart/stop、日志、drop-in 自定义路径、升级/回退和卸载。明确 check 不证明写权限，reload 信号发送不是业务切换确认，Type=exec 不是 HTTP 就绪，network.target 不保证固定 IPv4 已就绪，journal 保留策略独立；卸载保留账号及全部运行数据。README 改为链接完整单元和指南，AGENTS/CHANGELOG/测试指南/项目评估同步。
+
+验证：参照 systemd 官方 service/exec 文档，使用本机 systemd-analyze 249。直接验证因未安装 /usr/local/bin/filegate 报错，沙箱内另有 socket 访问限制；未因此安装主机二进制。随后在仓库 tmp 下临时复制单元，仅将三个可执行路径改指向 tmp/filegate，以 SYSTEMD_UNIT_PATH 指向副本和 /usr/lib/systemd/system，使用 --generators=no --man=no verify；获准在沙箱外只读验证后退出 0、无诊断。临时目录已自动删除，保留 tmp/systemd-verify.log 和原始主机验证日志。make build、部署 Bash 示例 bash -n、相对文档链接及 git diff --check 通过。未改 Go 源码，不重复先前应用竞态/进程测试，未运行浏览器或 fuzz；未在 systemd 限制中实际启动服务，目标主机的权限/隔离、发码/浏览/封禁、重载/停止验收仍按 deploy 指南执行。用户随后要求到沙箱外确认清理后提交：已获准只读检查当前用户进程，无 systemd-analyze/filegate/go/node/chrome/chromium 相关进程，无临时 systemd-verify 目录或测试 socket；/usr/local/bin/filegate 和 /etc/systemd/system/filegate.service 均未安装。仅保留验证日志及构建缓存。本轮将部署文件及相关文档一并提交，提交信息使用 `deploy: Add systemd service and deployment guide`；未打标签或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

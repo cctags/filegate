@@ -1,6 +1,6 @@
 # Filegate 与公开文件服务项目的对比评估
 
-评估日期：2026-10-24。本地基线：`66abbd2`，开始时工作区干净。首轮提出后续建议；随后用户选择 MIT，已添加 LICENSE 和 README 授权说明，并补充 CHANGELOG.md、SECURITY.md 和只读 check 命令。其余新功能、部署配置和发布工作流仍待实施。
+评估日期：2026-10-24。本地基线：`66abbd2`，开始时工作区干净。首轮提出后续建议；随后用户选择 MIT，已添加 LICENSE 和 README 授权说明，并补充 CHANGELOG.md、SECURITY.md、只读 check 命令及 systemd 部署文件。其余新功能和发布工作流仍待实施。
 
 ## 结论与适用范围
 
@@ -73,9 +73,9 @@ Filegate 已形成清楚的产品边界：Linux/IPv4、Go 标准库、单二进�
 
 ### 5. 可使用的 systemd 单元和部署材料
 
-README 已有非登录用户、权限和部分 `[Service]` 配置，基础正确；下一步提供完整的 `deploy/filegate.service` 与步骤：Unit/Install、专用用户、配置路径、日志/状态写权限、`ExecReload`、启动、启用、状态、reload、停止、卸载和升级。
+已提供 [deploy/filegate.service](../deploy/filegate.service) 和 [部署指南](../deploy/README.md)：Unit/Install、专用用户、配置路径、日志/状态写权限、启动/重载前 check、ExecReload、启用、状态、reload、停止、卸载和升级/回退。现有部署必须跳过 init 并保留状态；黑名单迁入 state，供原子替换。
 
-继续使用只读 content、管理员持有的配置，以及服务可写的 state/logs。强化选项必须与实际路径、AF_INET/AF_UNIX、Go 运行及本地 socket 管理一起验证，不能仅复制其他服务的限制。systemd 的 reload 发出 SIGHUP 不等于业务配置已经成功切换，应说明检查重载日志或后续状态。
+继续使用只读 content、管理员持有的配置，以及服务可写的 state/logs。单元保留 AF_INET/AF_UNIX；静态验证已通过，目标主机上的实际隔离、权限、管理 socket 和浏览器验收仍需按指南执行，不把应用进程测试等同于 systemd 验收。reload 先 check 再发 SIGHUP，业务切换仍以应用日志为准。
 
 Docker 不是部署简单性的必要条件：当前单二进制 + 专用用户 + systemd 已适合目标。确有容器使用者后再做精简非 root 镜像、只读内容卷和状态卷说明。
 
@@ -87,7 +87,7 @@ Docker 不是部署简单性的必要条件：当前单二进制 + 专用用户 
 
 ### 7. 升级、备份、恢复与批量失效
 
-README 已提醒恢复旧状态会复活旧码，但缺少完整操作流程。应记录备份哪些文件、何时停服、如何保留权限与密钥、如何替换/回退二进制、恢复后如何处理旧访问码，以及重启后会话全部失效。
+systemd 部署指南已补充停服备份、权限与密钥保留、二进制替换/回退、恢复旧码风险和重启后的会话失效。具体恢复仍需检查版本兼容性并逐项撤销旧码，不默认恢复历史状态。
 
 有实际需求时增加本地“撤销全部未用码/撤销全部会话”的操作，避免事故处置依赖手工编辑 state.json。它与现有按 ID revoke、按别名 logout 的关系应明确，不能顺手改变封禁名单。
 
@@ -129,8 +129,8 @@ README 已提醒恢复旧状态会复活旧码，但缺少完整操作流程。�
 ## 推荐实施顺序
 
 1. 许可证、CHANGELOG 和 SECURITY 文档已完成；确定公开仓库地址和私密漏洞报告渠道，整理当前说明，补简短贡献入口。
-2. 完整 systemd 示例与升级/恢复说明；只读 check 已实现。
+2. systemd 示例、升级/恢复说明和只读 check 已实现；按目标主机完成实际部署验收。
 3. 建最小 CI 和按版本触发的完整发布验证，交付 Linux amd64/arm64 压缩包及校验和。
 4. 根据部署反馈补本地诊断、状态格式演进、文件列表体验和浏览器/性能基线。
 
-用户已选择 MIT，要求添加 CHANGELOG、SECURITY 文档和只读 check 命令；正式仓库地址、私密漏洞报告渠道和其余建议仍待明确或实施。check 已运行相关回归、竞态、静态和实际进程验证，具体范围见 SESSION_STATE.md。未安装工具、未部署、未打标签或推送。
+用户已选择 MIT，要求添加 CHANGELOG、SECURITY 文档、只读 check 命令和 systemd 配套；正式仓库地址、私密漏洞报告渠道和其余建议仍待明确或实施。check 已运行相关回归、竞态、静态和实际进程验证，systemd 单元已静态验证，具体范围见 SESSION_STATE.md。未安装工具、未部署、未打标签或推送。

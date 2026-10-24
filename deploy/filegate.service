@@ -1,0 +1,44 @@
+[Unit]
+Description=Filegate private file server
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=filegate
+Group=filegate
+WorkingDirectory=/srv/filegate
+UMask=0077
+
+ExecStartPre=/usr/local/bin/filegate --config /srv/filegate/config.json check
+ExecStart=/usr/local/bin/filegate --config /srv/filegate/config.json serve
+ExecReload=/usr/local/bin/filegate --config /srv/filegate/config.json check
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+KillMode=control-group
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=filegate
+
+# Pre-create these directories; blacklist must be state/blacklist.txt.
+ProtectSystem=strict
+ReadWritePaths=/srv/filegate/state /srv/filegate/logs
+ProtectHome=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

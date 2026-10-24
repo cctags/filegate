@@ -24,6 +24,12 @@ All socket/port tests require an environment that permits local listeners.
 Test services bind only to loopback IPv4 and use generated temporary data.
 They do not use `tmp/demo` or an existing service's configuration.
 
+For systemd deployment, run `systemd-analyze verify` after installing the binary
+and unit, then follow the target-host acceptance checklist in
+[deploy/README.md](../deploy/README.md#验证范围). Static unit verification and
+the application process suite do not validate systemd namespace restrictions.
+Repository tests must not install, enable or modify a real system service.
+
 The process suite checks CLI administration, Chinese files, valid and rejected
 SIGHUP reloads, SIGTERM/SIGINT, persistent consumption and unblocking, restart,
 second instances, occupied ports, unavailable logging, invalid certificates,

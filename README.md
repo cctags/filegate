@@ -127,18 +127,7 @@ sudo -u filegate /usr/local/bin/filegate \
   --config /srv/filegate/config.json code ab --ttl 30m
 ```
 
-长期运行建议使用 systemd；服务单元的关键配置如下（部署示例，并非程序自动安装的服务）：
-
-```ini
-[Service]
-User=filegate
-Group=filegate
-WorkingDirectory=/srv/filegate
-ExecStart=/usr/local/bin/filegate --config /srv/filegate/config.json serve
-Restart=on-failure
-UMask=0077
-NoNewPrivileges=true
-```
+长期运行可使用仓库提供的 [deploy/filegate.service](deploy/filegate.service)。完整的首次安装、权限设置、启动、重载、升级/回退及卸载步骤见 [systemd 部署指南](deploy/README.md)。该单元固定使用上述路径，启动和重载前运行 `check`，仅允许服务写入 `state/` 和 `logs/`，因此黑名单必须迁移到 `state/blacklist.txt`。程序不自动安装或启用服务，已有部署也不要重新初始化。
 
 `serve` 在参数校验后检查有效用户 ID；若为 `0`，在读取配置、创建文件或监听端口前报错退出，提示切换服务用户。`--help`、`--version`、`init`、`check` 和本地管理命令仍允许 root 执行，但建议以服务用户初始化和检查，避免生成 root 拥有的运行文件或遗漏权限问题。普通用户不强制命名为 `filegate`，不提供 root 豁免选项；程序不会自动创建用户或降权。
 
