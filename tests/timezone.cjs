@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname, '../internal/gate/client_timezone.go'), 'utf8');
+const match = /const clientTimezoneScript = `([^`]+)`/.exec(source);
+assert.ok(match, 'fixed timezone script missing');
+const script = match[1];
+function form(method){return {method,fields:[],listeners:[],addEventListener(event,fn){assert.equal(event,'submit');this.listeners.push(fn)},querySelector(selector){const match=/^input\[name="(client_timezone|client_utc_offset)"\]$/.exec(selector);assert.ok(match);return this.fields.find(x=>x.name===match[1])},appendChild(input){this.fields.push(input)},submit(){throw Error('unexpected submission')}}}
+const post=form('post'),get=form('get');
+const document={forms:[post,get],createElement(tag){assert.equal(tag,'input');return {}}};
+Object.defineProperty(document,'cookie',{get(){throw Error('unexpected credential read')}});
+vm.runInNewContext(script,{document,Intl:{DateTimeFormat(){return {resolvedOptions(){return {timeZone:'Asia/Shanghai'}}}}},Date:class{getTimezoneOffset(){return -480}}});
+assert.equal(post.fields.length,0);
+assert.equal(get.listeners.length,0);
+post.listeners[0]();post.listeners[0]();
+assert.deepEqual(post.fields.map(x=>[x.type,x.name,x.value]),[['hidden','client_timezone','Asia/Shanghai'],['hidden','client_utc_offset','480']]);
+const fallback=form('post');
+vm.runInNewContext(script,{document:{...document,forms:[fallback]},Intl:undefined});
+fallback.listeners[0]();assert.equal(fallback.fields.length,0);
+console.log('Timezone script: syntax, submit-only fields, repeated-submit safety, GET exclusion and graceful fallback passed.');

@@ -358,11 +358,16 @@ ls -lh tmp/demo/logs/
 make test   # 并发竞争检测及安全/功能测试，需要本机 C 编译器供 race 使用
 make vet
 make build  # CGO_ENABLED=0，输出 tmp/filegate
+make test-integration  # 非 root：实际进程、CLI、IPv4/TLS、信号与重启
+make test-browser      # 可选：Node 20+ 和本机 Chrome，无需 npm install
+make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 ```
 
 `make build` 默认优化交付体积：使用 `-trimpath` 去除本机路径，并通过链接参数 `-s -w` 去除符号表和 DWARF 调试信息，保持单文件静态链接及全部功能。构建时同时通过 `-X` 写入版本和构建时间。生成的程序不适合源码级调试；需要调试时，可在相同构建环境下去掉链接参数中的 `-s -w` 重新编译。不使用额外压缩工具或第三方依赖。
 
 运行服务不依赖 C 运行库。测试覆盖一次性码并发消费、重启持久化、目录越界、退出/超时、封禁、Range 响应、本机管理通信和失败落盘。网络受限沙箱可能禁止 Unix socket 测试，需在允许本机 socket 的环境执行完整测试。
+
+测试审查基线、后续补充结果和仍未验证的范围见 [TEST_REVIEW.md](TEST_REVIEW.md)。操作步骤见 [tests/README.md](tests/README.md)：默认测试包含 fuzz 种子，但不启动实际服务进程或浏览器；可选集成测试仅使用仓库 tmp 下的独立数据和回环 IPv4，不操作已有 demo。浏览器回归验证启用/禁用脚本的登录、跨站链接确认、CSP、时区和退出；支持 `CHROME_BIN=/usr/bin/chromium make test-browser`，Firefox 仍需独立验收。Go 检查范围限定产品包，避免扫描 tmp 中正在编译的临时源码。
 
 代码入口在 `cmd/filegate/`，配置、状态、管理通信与 Web 请求逻辑在 `internal/gate/`。没有第三方模块依赖；修改后使用 `gofmt`，重点保持授权和状态写入规则可审查。
 

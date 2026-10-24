@@ -9,11 +9,15 @@ Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filega
 - `make build`: produce the static executable `tmp/filegate` with `CGO_ENABLED=0`, `-trimpath`, and `-s -w`; embed version and UTC build time.
 - `make build VERSION=v0.1.0`: override the release version.
 - `make test`: run all tests with the race detector; requires a C compiler and permission to create local Unix sockets.
+- `make test-integration`: opt into real binary/CLI/IPv4/TLS/signal/restart tests; use a non-root account and permit local listeners.
+- `make test-browser`: optional Node 20+/Chrome CDP checks; set `CHROME_BIN` for Chromium. No npm packages or runtime dependencies.
+- `make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s`: fuzz one gate entry point; defaults are JSONC and 30 seconds.
 - `make vet`: run Go’s static checks.
 - `make vulncheck`: scan product packages with separately installed `govulncheck` (network required; development tool only).
 - `gofmt -w cmd internal`: format Go sources.
 
 Keep caches and temporary files in repository `tmp/`, never `/tmp`. Keep runtime data and binaries untracked.
+Scope Go test/vet commands to `./cmd/... ./internal/...` so temporary Go sources are not scanned. See `tests/README.md` for optional suites and unverified browser/deployment cases. Never use real demo data in tests; bound waits and join/clean up children and goroutines. Avoid parallel tests that mutate global slog, signals or environment.
 
 ## CLI & Local Operation
 

@@ -166,32 +166,80 @@ func TestDailyRotationAndRetention(t *testing.T) {
 
 func TestRotationConcurrentWrites(t *testing.T) {
 	c := testConfig(t)
-	c.MaxFiles = 10
+	c.MaxSizeMB, c.MaxFiles = 1, 10
 	var console bytes.Buffer
-	service, e := Start(c, filepath.Join(filepath.Dir(c.Directory), "content"), &console)
-	if e != nil {
-		t.Fatal(e)
+	service, err := Start(c, filepath.Join(filepath.Dir(c.Directory), "content"), &console)
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Cleanup(func() { service.Close() })
 	var wg sync.WaitGroup
+	payload := strings.Repeat("x", 12<<10)
 	for worker := range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for n := range 30 {
-				service.Logger.Info("concurrent", "worker", worker, "n", n)
+				service.Logger.Info("concurrent", "worker", worker, "n", n, "payload", payload)
 			}
 		}()
 	}
+	// Exercise maintenance under the same lock while log writes trigger rotation.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range 30 {
+			if err := service.writer.maintain(); err != nil {
+				t.Errorf("maintenance: %v", err)
+				return
+			}
+		}
+	}()
 	wg.Wait()
-	if e = service.Close(); e != nil {
-		t.Fatal(e)
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
 	}
-	data, _ := os.ReadFile(filepath.Join(c.Directory, "filegate.log"))
-	if lines := bytes.Count(data, []byte("\n")); lines != 240 {
-		t.Fatalf("missing or interleaved records: %d", lines)
+	names := archives(t, c.Directory)
+	if len(names) < 2 {
+		t.Fatal("concurrent writes did not rotate")
 	}
-	if bytes.Count(console.Bytes(), []byte("\n")) != 240 {
-		t.Fatal("console records missing")
+	names = append(names, "filegate.log")
+	seen := map[string]bool{}
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(c.Directory, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
+			fields := strings.Fields(line)
+			var worker, n, payloadValue string
+			for _, field := range fields {
+				if strings.HasPrefix(field, "worker=") {
+					worker = field
+				}
+				if strings.HasPrefix(field, "n=") {
+					n = field
+				}
+				if strings.HasPrefix(field, "payload=") {
+					payloadValue = strings.TrimPrefix(field, "payload=")
+				}
+			}
+			id := worker + "/" + n
+			if worker == "" || n == "" || payloadValue != payload || seen[id] {
+				t.Fatal("torn, repeated or invalid log record")
+			}
+			seen[id] = true
+		}
+	}
+	for worker := range 8 {
+		for n := range 30 {
+			if !seen[fmt.Sprintf("worker=%d/n=%d", worker, n)] {
+				t.Fatal("missing log record")
+			}
+		}
+	}
+	if len(seen) != 240 || bytes.Count(console.Bytes(), []byte("\n")) != 240 {
+		t.Fatal("missing log records")
 	}
 }
 

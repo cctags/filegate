@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -255,18 +254,15 @@ func TestAdminSocketAndLock(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer l.Close()
-	go a.ServeAdmin(l)
+	serveAdminForTest(t, a, l)
 	out, e := Call(a.cfg, Request{Action: "code", Value: "ab"})
 	if e != nil || out.Code == "" {
 		t.Fatalf("admin IPC: %v %+v", e, out)
 	}
+	issued := out
 	out, e = Call(a.cfg, Request{Action: "status"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, _ := json.Marshal(out)
-	if strings.Contains(string(b), a.state.Secret) || strings.Contains(string(b), a.digest(out.Code)) {
-		t.Fatal("status leaks secret")
-	}
+	assertStatusRedacted(t, a, issued, out)
 }

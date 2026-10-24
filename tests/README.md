@@ -1,0 +1,83 @@
+# Optional integration and browser checks
+
+The application and Go tests use only the Go standard library. Browser checks
+use Node's built-in modules and a locally installed Chrome/Chromium executable;
+there is no npm install step or browser download during tests.
+
+## Run the suites
+
+Run from the repository root on Linux as a non-root user:
+
+```bash
+make test              # race detector; includes Unix socket tests
+make vet
+make test-integration  # build a temporary binary; real processes and IPv4/TLS
+make test-browser      # build tmp/filegate; Node 20+ and google-chrome
+CHROME_BIN=/usr/bin/chromium make test-browser
+make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
+```
+
+`make test` runs fuzz seeds but skips the two real-process tests unless
+`FILEGATE_INTEGRATION=1` is set. `make test-integration` enables them explicitly.
+The process tests skip when run as root; use a normal development account.
+All socket/port tests require an environment that permits local listeners.
+Test services bind only to loopback IPv4 and use generated temporary data.
+They do not use `tmp/demo` or an existing service's configuration.
+
+The process suite checks CLI administration, Chinese files, valid and rejected
+SIGHUP reloads, SIGTERM/SIGINT, persistent consumption and unblocking, restart,
+second instances, occupied ports, unavailable logging, invalid certificates,
+and TLS/HTTP2 using certificate files and a test trust store.
+
+## Automated browser scope
+
+`browser.cjs` starts an isolated headless Chrome profile and controls it through
+CDP pipes. It uses `--no-sandbox` for this local, generated test fixture; do not
+reuse this launch command to browse arbitrary websites. Every service, profile
+and temporary file is under the repository `tmp/`. Children are terminated and
+temporary data is deleted on success; failed runs retain artifacts in the
+reported `tmp/browser-*` directory. Those artifacts can contain test access
+codes in browser history and must remain untracked.
+
+The suite tests actual Origin headers, SameSite cookies, manual code login,
+cross-site link landing/confirmation, replacement of an existing login,
+directory isolation and logout, with JavaScript enabled and disabled. With
+JavaScript enabled it also verifies Asia/Shanghai timezone reporting, the fixed
+script's CSP hash, rejection of an unapproved inline script, and HTML/SVG source
+preview. It checks application logs for test credential leakage. Inspector
+evaluation is used to drive forms; it is not itself a test of CSP enforcement,
+which is checked separately by inserting an unapproved page script.
+
+`timezone.cjs` retains the submit-only, repeated-submission and missing-Intl
+simulation as a reproducible optional check. Run it directly with
+`node tests/timezone.cjs`; `make test-browser` also runs it first.
+
+## Firefox and release acceptance
+
+The CDP runner supports Chrome/Chromium. Firefox uses a different automation
+protocol and is not silently treated as tested by a Chrome run. Until a Firefox
+runner is added, perform this checklist in a disposable Firefox profile against
+a separate initialized test service, and record the Firefox version and result:
+
+1. Generate an `ab` code, enter it in the form and confirm that login succeeds;
+   use Developer Tools to verify a same-origin POST and no unexpected CSP error.
+2. Open a freshly generated `cd` access link from a page on another site
+   (for example, `localhost` versus the service's `127.0.0.1`). Verify that GET
+   does not consume the code, the URL is cleaned and confirmation switches to
+   the correct directory. The previous session is replaced only after success.
+3. Verify normal logout and inspect cookie attributes, as well as the UTC
+   timezone/offset fields reported in application logs.
+4. Disable JavaScript in the disposable profile, reload the login page, and
+   repeat manual login, link confirmation and logout. Timezone may be unknown.
+5. Open HTML and SVG fixtures containing harmless test scripts. They must be
+   shown as source and must not execute. Check that unrelated inline scripts
+   on generated pages are blocked by CSP.
+6. For release acceptance, also check the files actually used in deployment:
+   PDF, MP3/video seeking, images, UTF-8/UTF-16 text, explicit download and
+   Chinese filenames. Browser media support varies; header-only fixtures do
+   not prove that a media file decodes successfully.
+
+No checklist entry counts as executed merely because it is documented.
+Real disk-full/fsync failure, power loss, cross-UID permissions and mobile
+browser behavior require separate controlled environments; do not change
+system users, fill disks or kill a real service as part of ordinary tests.

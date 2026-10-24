@@ -212,6 +212,28 @@ CLI 新增仅 code 可用的 --base-url http(s)源地址，在参数解析阶段
 
 新增无匹配、仅临时/仅永久/两者同时、较大网段覆盖、CIDR 规范化、显式 /32、重复执行、无关记录保留、零计数 JSON 及持久化失败恢复测试。首次保存失败夹具试图直接在已有 state.json 上建目录而失败，修正为先重命名测试状态文件后重跑通过。最终 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、`make vet`、`make build`、帮助输出及 `git diff --check` 均通过；仍跳过沙箱受限 Unix socket 测试，未跑真实浏览器或 govulncheck。README、帮助和安全审查记录已同步，未修改实际配置或重启服务；用户随后要求提交，本轮代码、测试和文档随 unblock 结果说明提交保存。
 
+### 测试完整性审查（2026-10-24）
+
+用户要求全面检查现有单元/集成测试并判断是否需要补充，本轮仅审查和运行验证，没有授权后的补测实施阶段；业务源码、既有测试与 Makefile 均未修改。开始前 HEAD 为 5232c43，工作区干净。新增 TEST_REVIEW.md 保存需求矩阵、优先级、具体测试方案及验证证据，README 添加入口。后续建议均待实施，不应当作已补齐。
+
+盘点 17 个测试文件、87 个 Test 函数和 1 个 fuzz 入口。完整 `go test -race -coverprofile=tmp/test-review-coverage.out ./...` 在沙箱因 Unix socket setsockopt 权限失败，获准在沙箱外重跑后全通过；本轮没有跳过该测试。覆盖率 CLI 60.7%、gate 87.5%、logging 79.5%，总语句 83.3%。沙箱外 `go test -race -shuffle=on -count=10 ./...` 也全通过。JSONC fuzz 2 worker/30 秒通过，292797 次；最终单独 make vet、git diff --check 通过。fuzz 编译期间同时 vet 曾误扫描 tmp/build 内部包，等待结束重跑通过，建议后续把检查范围限定产品包或隐藏生成目录。
+
+发现 status 脱敏测试覆盖 out 后计算空码摘要、并发轮转测试实际数据不足触发轮转、全局登录和下载上限无独立边界断言。用 tmp 中 Go overlay 注入三种单一回归，确认删除 status 的 Digest 清空后包含 Unix socket 的完整产品包测试仍通过，取消全局下载/登录限制后跳过无关 Unix socket 的产品包测试也通过。实际源码没有这些错误；不能把故意注入的错误当作产品漏洞。overlay 初始普通 .go 扩展造成临时包被扫描，修正为 .gotxt 并限定产品包后重跑才计入结论。
+
+建议先补上述断言、发码/撤销/封禁/解封的落盘与重建、管理员 logout、主会话 Cookie 属性、受保护路径与损坏状态；再补 Unix 协议负面路径、实际二进制启动/SIGHUP/SIGTERM/重新启动及少量浏览器回归。Node 夹具只在 tmp，不能当成仓库自带回归；当前真实 TLS/HTTP2 使用 net.Pipe，无真实 TCP/浏览器或信号端到端执行。未修改运行配置、读取真实凭据或重启实际服务。临时原始输出均忽略，持久结论在 TEST_REVIEW.md。
+
+### 测试补强实施（2026-10-24）
+
+用户随后授权按审查建议实施。业务 Go 源码保持原行为，新增 admin_state_test.go、admin_protocol_test.go、boundaries_test.go、audit_boundaries_test.go、rotation_failure_test.go、cmd/filegate/process_test.go，修改原 status 断言和并发轮转测试。共有 23 个 Go 测试文件、118 个 Test 函数、4 个 fuzz 入口，比审查基线增加 31 个 Test 和 3 个 fuzz。覆盖持久化/部分失败/重建、精确配额、窗口恢复、管理员 logout、Cookie 生命周期、状态/路径保护、请求异常/特殊文件、协议错误/断连/超时、元数据与日志故障恢复等；详细对应表见 TEST_REVIEW.md 的后续实施部分。
+
+Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp 编译文件。新增 make test-integration，FILEGATE_INTEGRATION=1 显式启用实际二进制、CLI、IPv4、TLS/HTTP2、信号与重启测试；平常 make test 默认跳过两个进程测试。进程套件要求非 root，本轮以实际 UID 1003 执行，两个流程均通过。夹具仅在仓库 tmp，用短 socket 路径避免 sockaddr_un 上限，子进程和协程有有界清理，实际服务未动。
+
+新增 tests/browser.cjs、tests/timezone.cjs 和 tests/README.md；make test-browser 只需 Node 内置模块及本机 Chrome/Chromium（可用 CHROME_BIN），不添加 npm 包或生产依赖。独立 Chrome profile/CDP 管道验证实际 Origin、主/待确认 Cookie、启用和禁用 JS 的手输/跨站链接确认/会话切换/隔离/退出、固定脚本 CSP、时区上报、HTML/SVG 源码和凭据脱敏。Chrome 155.0.8059.39 两轮通过；Firefox 未安装，手工验收步骤已保存但尚未执行，不能按 Chrome 结果宣称 Firefox 已测。失败浏览器夹具保留 tmp/browser-*，其中可能有测试访问码，保持忽略；成功自动清理。
+
+最终验证：完整 make test 含 Unix socket 通过；随机重复 5 次通过，后续最后边界变更后再随机重复 3 次通过。make test-integration、make test-browser、make vet、构建、git diff --check 通过。普通覆盖率 CLI 60.7%、gate 90.8%、logging 81.0%、总计 86.0%（原 83.3%）；实际进程的独立二进制执行不计入普通覆盖率。三个新增 fuzz 各 10 秒通过，次数 Alias 103287、RelativePath 98251、ClientMetadata 78498；默认种子仍全部执行。
+
+重新注入 status 摘要暴露、全局下载上限缺失、全局登录频率缺失三个 overlay 错误，新测试均按预期失败，证明原盲区已补上；没有保留故意错误。普通新测试首次在沙箱拒绝 socket，获准重跑；协议的长 socket 路径夹具已修正。没有运行 Firefox、断电/fsync 故障、跨 UID/移动端/真实媒体验收或 govulncheck；没有增加 CI 工作流或修改部署数据。README、AGENTS、测试审查文档均已同步；用户随后要求提交，首轮审查记录、测试补强及开发入口随本次测试提交保存。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
