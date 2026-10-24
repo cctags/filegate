@@ -6,8 +6,9 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf de
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 FUZZ ?= FuzzStripJSONComments
 FUZZTIME ?= 30s
+RELEASE_ARCH ?= amd64
 
-.PHONY: prepare build test test-integration test-browser fuzz vet vulncheck
+.PHONY: prepare build test test-integration test-browser test-release dist fuzz vet vulncheck
 prepare:
 	mkdir -p tmp/test-tmp tmp/build tmp/go-cache
 
@@ -22,6 +23,12 @@ test-integration: prepare
 
 test-browser: build
 	node tests/browser.cjs
+
+test-release: prepare
+	bash tests/release.sh
+
+dist: prepare
+	bash scripts/package-release.sh "$(VERSION)" "$(RELEASE_ARCH)"
 
 fuzz: prepare
 	go test ./internal/gate -run '^$$' -fuzz '^$(FUZZ)$$' -fuzztime=$(FUZZTIME) -parallel=2

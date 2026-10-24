@@ -4,6 +4,8 @@
 
 功能变化、版本范围和升级注意事项见 [CHANGELOG.md](CHANGELOG.md)。
 
+自动检查、Linux amd64/arm64 发行包与 SHA256 校验、版本发布流程见 [CI 与版本发布](docs/RELEASING.md)。预编译包由标签工作流生成，经管理员核对草稿后发布；当前是否有发行物请以实际仓库 Releases 页面为准。
+
 安全维护范围、漏洞报告方式和部署边界见 [SECURITY.md](SECURITY.md)。
 
 2026-10-24 的[安全审查记录](SECURITY_REVIEW.md)保留旧版本问题及本轮修复状态。当前已升级构建要求、修复慢登录与配置校验、限制下载资源，并去除 IPv6 支持。发布时应持续使用受支持 Go 分支的最新安全补丁重新构建；“只使用标准库”不代表无需跟进安全更新。
@@ -392,7 +394,7 @@ make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 
 测试审查基线、后续补充结果和仍未验证的范围见 [TEST_REVIEW.md](TEST_REVIEW.md)。操作步骤见 [tests/README.md](tests/README.md)：默认测试包含 fuzz 种子，但不启动实际服务进程或浏览器；可选集成测试仅使用仓库 tmp 下的独立数据和回环 IPv4，不操作已有 demo。浏览器回归验证启用/禁用脚本的登录、跨站链接确认、CSP、时区和退出；支持 `CHROME_BIN=/usr/bin/chromium make test-browser`，Firefox 仍需独立验收。Go 检查范围限定产品包，避免扫描 tmp 中正在编译的临时源码。
 
-公开发布、部署配套及后续维护的对比建议见 [项目评估](docs/PROJECT_REVIEW.md)；该文档区分已有能力和待实施建议，许可证已选定为 MIT，CI 和发行物等仍待实施。
+公开发布、部署配套及后续维护的对比建议见 [项目评估](docs/PROJECT_REVIEW.md)；该文档区分已有能力和待实施建议。MIT、systemd、CI 与发布工作流已添加，远端 Actions 执行及实际 Release 尚需在正式仓库验证。
 
 Codex 的日常功能开发按改动影响选择相关测试，不要求每次都跑全套；认证、隔离、持久化或并发等共享逻辑变更应扩大回归范围。创建/移动版本标签或发布前，必须针对目标版本运行完整自动化检查：test、vet、build、进程集成、Chrome 浏览器及四个 fuzz 入口各 30 秒。失败或缺少环境时先报告，不能把跳过视为通过；Firefox 等人工验收单独记录。详细执行规则已写入 AGENTS.md 和测试指南。测试后检查进程、监听与浏览器 profile 的清理情况，报告和构建缓存默认保留。
 

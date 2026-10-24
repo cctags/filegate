@@ -298,6 +298,18 @@ deploy/README.md 提供新部署完整流程及已有部署迁移注意事项：
 
 验证：参照 systemd 官方 service/exec 文档，使用本机 systemd-analyze 249。直接验证因未安装 /usr/local/bin/filegate 报错，沙箱内另有 socket 访问限制；未因此安装主机二进制。随后在仓库 tmp 下临时复制单元，仅将三个可执行路径改指向 tmp/filegate，以 SYSTEMD_UNIT_PATH 指向副本和 /usr/lib/systemd/system，使用 --generators=no --man=no verify；获准在沙箱外只读验证后退出 0、无诊断。临时目录已自动删除，保留 tmp/systemd-verify.log 和原始主机验证日志。make build、部署 Bash 示例 bash -n、相对文档链接及 git diff --check 通过。未改 Go 源码，不重复先前应用竞态/进程测试，未运行浏览器或 fuzz；未在 systemd 限制中实际启动服务，目标主机的权限/隔离、发码/浏览/封禁、重载/停止验收仍按 deploy 指南执行。用户随后要求到沙箱外确认清理后提交：已获准只读检查当前用户进程，无 systemd-analyze/filegate/go/node/chrome/chromium 相关进程，无临时 systemd-verify 目录或测试 socket；/usr/local/bin/filegate 和 /etc/systemd/system/filegate.service 均未安装。仅保留验证日志及构建缓存。本轮将部署文件及相关文档一并提交，提交信息使用 `deploy: Add systemd service and deployment guide`；未打标签或发布。
 
+### CI 与发布工作流（2026-10-24）
+
+用户要求添加 CI/releases 相关内容；基线为 302838d，工作区开始时干净，仍无 Git remote。本轮新增 .github/workflows/ci.yml（分支 push/PR/手动完整模式）、validate.yml（复用验证）、release.yml（v* 标签触发）。普通 CI 按变更范围选择基础/进程/浏览器检查，Markdown/许可证变更跳过 Go 检查但保留 result 状态；未知比较基线按全部源码处理。完整模式执行竞态、vet、构建、打包回归、进程、Chrome 和四个 fuzz 各 30 秒，显式要求非 root/Chrome，使用 go.mod 版本且禁止工具链静默切换。Actions 从官方发布页核对并固定完整 SHA（checkout 7.0.1、setup-go 7.0.0、setup-node 7.1.0、upload-artifact 7.0.2、download-artifact 8.0.2），关闭 checkout 凭据持久化和 Go 的隐式缓存。
+
+发布要求 vMAJOR.MINOR.PATCH（可预发布后缀）、标签指向干净 HEAD、对应带日期的 CHANGELOG 段落。完整验证后在 ubuntu-24.04/ubuntu-24.04-arm 原生构建并解包烟雾验证，应用完整回归在 amd64 执行。汇总两个归档和 SHA256SUMS，提取本版本变更说明；仅最后的 draft 任务有 contents:write，不执行源码构建脚本，并重新核对远端标签提交，创建需维护者手工公开的 Release 草稿。已有 Release/同名资产不覆盖。中间产物保留 7 天，不自动上传可能含测试凭据的浏览器目录。未新增签名/attestation/govulncheck 发布门槛，不修改旧 v0.1 标签或伪造新版本。
+
+新增 Bash 辅助脚本：CI 范围判定、版本校验、说明提取、打包及原生烟雾检查。make dist VERSION=... RELEASE_ARCH=... 在 tmp/dist 生成单架构包，CGO=0、trimpath、s/w，使用标签和提交 UTC 时间、BUILDINFO，规范 tar/gzip 元数据，明确文档/部署文件白名单，不打包运行配置/内容/状态/密钥。make test-release 在独立临时 Git 仓库创建虚构 v9.8.7 标签，验证版本/干净状态/CHANGELOG/旧标签拒绝、凭据诱饵不入包、拒绝覆盖、amd64 原生初始化/check、arm64 交叉编译及 CI 文档/代码/未知基线范围；测试标签从未写入当前仓库。
+
+验证：YAML 解析、所有 Bash 脚本 bash -n、actionlint 1.7.12（未启用不可用的 shellcheck）、相对文档链接、make test-release 及 git diff --check 通过。actionlint 从官方 Release 下载并核对 SHA256，工具及下载仅留在 tmp/actionlint，不增加产品或 Go module 依赖。获准在沙箱外完整执行 make test/vet/build/test-integration/test-browser 和四个 fuzz 各 30 秒，全部通过；Chrome 155.0.8059.39 覆盖启用/禁用脚本流程、CSP、时区和脱敏。arm64 本机只交叉编译检查，未执行原生运行；GitHub 云端 Actions/SDK 下载、原生 arm64 runner、artifact API、gh 草稿创建及仓库权限设置尚未实际验收，无远端因此未触发。Firefox、实际 systemd 隔离、签名及跨机器可复现性不在本轮验证范围。
+
+清理：沙箱外只读检查当前用户，无 Go/Filegate/Node/Chrome/crashpad 等相关测试进程，无临时打包/烟雾/Git fixture/浏览器目录或测试 socket。保留 tmp/ci-full-validation.log、tmp/release-regressions.log、actionlint 工具与构建/fuzz 缓存；未使用或修改 tmp/demo。README、AGENTS、CHANGELOG、测试指南和项目评估已同步，新增 docs/RELEASING.md。用户随后要求提交，本轮将工作流、辅助脚本、打包回归及相关文档一并提交，提交信息使用 `ci: Add validation and draft release workflows`；未创建当前仓库标签、推送或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

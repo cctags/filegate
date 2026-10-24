@@ -4,6 +4,7 @@
 
 Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. `internal/logging/` provides colored console output, file rotation and retention. HTML/CSS is embedded in the handler template.
 `deploy/` contains the systemd unit and installation/operation guide; keep their paths and permissions aligned with the CLI and README.
+`.github/workflows/` contains scoped CI, reusable validation and tag-triggered draft releases. `scripts/` and `tests/release.sh` handle release guards, packaging and smoke tests; see `docs/RELEASING.md`.
 
 ## Build, Test, and Development Commands
 
@@ -12,6 +13,8 @@ Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filega
 - `make test`: run all tests with the race detector; requires a C compiler and permission to create local Unix sockets.
 - `make test-integration`: opt into real binary/CLI/IPv4/TLS/signal/restart tests; use a non-root account and permit local listeners.
 - `make test-browser`: optional Node 20+/Chrome CDP checks; set `CHROME_BIN` for Chromium. No npm packages or runtime dependencies.
+- `make test-release`: test release guards, package isolation, native smoke, cross compilation and CI scope in a disposable Git fixture.
+- `make dist VERSION=vX.Y.Z RELEASE_ARCH=amd64`: package a clean, tagged revision under `tmp/dist/`; also supports arm64. Does not run release validation or publish.
 - `make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s`: fuzz one gate entry point; defaults are JSONC and 30 seconds.
 - `make vet`: run Go’s static checks.
 - `make vulncheck`: scan product packages with separately installed `govulncheck` (network required; development tool only).
@@ -50,7 +53,8 @@ Web UI and application errors use the embedded Chinese/English dictionaries in `
 
 For routine features and fixes, choose tests by impact: add relevant regressions, run affected package tests, and use race detection, vet and build checks as appropriate. Include process tests for startup/CLI/reload/persistence changes, browser tests for login/cookies/UI/CSP changes, and fuzzing for parsers or input validation. Broaden checks for shared security or concurrency changes. Documentation-only changes need accuracy and diff checks. Reuse successful results for unchanged code; a later request to commit alone does not require rerunning them.
 
-Before creating or moving a version tag, or publishing a release, verify the intended revision with `make test`, `make vet`, `make build`, `make test-integration`, `make test-browser`, and 30 seconds each for all four gate fuzz targets listed in `tests/README.md`. Confirm the target tree is clean and the results apply to it. Report failures or unavailable prerequisites before tagging/releasing; never count skipped checks as passed. Record manual browser/deployment checks separately. After tagging, rebuild and verify version metadata if producing release binaries.
+Before creating or moving a version tag, or publishing a release, verify the intended revision with `make test`, `make vet`, `make build`, `make test-release`, `make test-integration`, `make test-browser`, and 30 seconds each for all four gate fuzz targets listed in `tests/README.md`. Confirm the target tree is clean and the results apply to it. Report failures or unavailable prerequisites before tagging/releasing; never count skipped checks as passed. Record manual browser/deployment checks separately. After tagging, rebuild and verify version metadata if producing release binaries.
+Release infrastructure changes also require `make test-release` and workflow linting. Pin Actions to reviewed full commit SHAs, keep PR/tests read-only and grant write permission only to the draft-release job. Never include runtime data in packages, overwrite published assets or move existing tags. Require a dated CHANGELOG section and native architecture smoke tests; distinguish local validation from actual GitHub runs. Packaging fixture tags are confined to temporary repositories and are not project releases.
 
 Report checks run and material omissions. Finish by checking test children/listeners/profiles are closed or removed; preserve user data, useful reports and build caches unless cleanup is requested.
 

@@ -1,0 +1,63 @@
+name: Validate
+
+on:
+  workflow_call:
+    inputs:
+      process:
+        type: boolean
+        default: false
+      browser:
+        type: boolean
+        default: false
+      full:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: inputs.browser || inputs.full
+        with:
+          node-version: '24'
+      - name: Verify prerequisites and clean sources
+        run: |
+          test "$(id -u)" -ne 0
+          test -z "$(git status --porcelain)"
+          test -z "$(gofmt -l cmd internal)"
+          go version
+      - run: make test
+      - run: make vet
+      - run: make build
+      - run: make test-release
+      - run: make test-integration
+        if: inputs.process || inputs.full
+      - name: Browser regressions
+        if: inputs.browser || inputs.full
+        run: |
+          command -v google-chrome
+          node --version
+          make test-browser
+      - name: Fuzz all gate targets
+        if: inputs.full
+        run: |
+          for target in FuzzStripJSONComments FuzzAccessAlias FuzzRelativePath FuzzClientMetadata; do
+            make fuzz FUZZ="$target" FUZZTIME=30s
+          done
+      - name: Verify source tree stayed clean
+        run: test -z "$(git status --porcelain)"

@@ -13,6 +13,7 @@ make test              # race detector; includes Unix socket tests
 make vet
 make test-integration  # build a temporary binary; real processes and IPv4/TLS
 make test-browser      # build tmp/filegate; Node 20+ and google-chrome
+make test-release      # isolated Git fixture; release guards and package checks
 CHROME_BIN=/usr/bin/chromium make test-browser
 make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 ```
@@ -40,6 +41,12 @@ regular CLI suite snapshots file contents, modes and modification times on
 successful and failed checks, including missing initial state/log directories,
 Chinese mappings, symlinks, FIFOs, unreadable files and invalid state/TLS pairs.
 
+GitHub Actions runs scoped CI and a reusable full validation workflow before
+tagged draft releases. Packaging regressions create tags only inside temporary
+Git fixtures; they do not tag, push or publish this repository. See
+[docs/RELEASING.md](../docs/RELEASING.md) for permissions, architecture smoke
+coverage, checksums, artifact retention and the remaining cloud-run validation.
+
 ## Choosing validation scope
 
 For ordinary feature work, Codex chooses checks based on the affected behavior.
@@ -58,6 +65,7 @@ checks below. This is a Codex repository instruction, not a Git hook:
 make test
 make vet
 make build
+make test-release
 make test-integration
 make test-browser
 make fuzz FUZZ=FuzzStripJSONComments FUZZTIME=30s

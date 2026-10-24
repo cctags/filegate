@@ -1,6 +1,6 @@
 # Filegate 与公开文件服务项目的对比评估
 
-评估日期：2026-10-24。本地基线：`66abbd2`，开始时工作区干净。首轮提出后续建议；随后用户选择 MIT，已添加 LICENSE 和 README 授权说明，并补充 CHANGELOG.md、SECURITY.md、只读 check 命令及 systemd 部署文件。其余新功能和发布工作流仍待实施。
+评估日期：2026-10-24。本地基线：`66abbd2`，开始时工作区干净。首轮提出后续建议；随后用户选择 MIT，已添加 LICENSE 和 README 授权说明，并补充 CHANGELOG.md、SECURITY.md、只读 check、systemd、CI 和发布工作流。远端执行、实际发行及其余建议仍待验证或实施。
 
 ## 结论与适用范围
 
@@ -39,27 +39,27 @@ Filegate 已形成清楚的产品边界：Linux/IPv4、Go 标准库、单二进�
 
 ### 2. 最小 CI 与发布流程
 
-当前本地没有 `.github/workflows`。建议分层，而非每次 push 都执行所有慢检查：
+已添加 `.github/workflows/ci.yml`、复用的 `validate.yml` 和标签触发的 `release.yml`，详细行为见 [发布指南](RELEASING.md)：
 
-- 常规代码 PR/push：格式检查、`make test`、`make vet`、`make build`；仅文档变更按影响跳过代码检查。
-- 影响启动、CLI、重载、持久化：补进程集成；影响登录、Cookie、页面、CSP：补 Chrome；解析或输入校验变化执行相关 fuzz。
-- 版本标签、发布或手动完整验证：执行 AGENTS.md 已规定的全套自动化，包括四个 fuzz 各 30 秒。CI 中应确认进程测试以非 root 运行，跳过不能伪装成成功覆盖。
+- 常规代码 PR/push：格式检查、`make test`、`make vet`、`make build` 和 `make test-release`；仅 Markdown/许可证变更跳过 Go 检查，保留最终状态。
+- CLI、内部模块和测试基础设施变更增加进程集成；gate、主入口和浏览器/CI 基础设施变更增加 Chrome。
+- 版本标签和手动完整验证执行全套自动化，包括四个 fuzz 各 30 秒；显式检查非 root 和 Chrome，必要条件缺失使任务失败。
 
-测试 workflow 只给必要读取权限，发布写权限只用于发布任务；第三方 Actions 固定到审核过的提交。定期检查构建工具链安全补丁，并实际使用已有 `make vulncheck` 入口。本轮未发现已安装的 govulncheck，也未执行扫描，不能把先前修复记录当成持续安全检查。[Go 官方漏洞管理工具](https://go.dev/doc/security/vuln/)会结合调用关系分析已知漏洞；纯标准库程序仍需要关注构建工具链。
+测试和构建只给读取权限，仅创建草稿的任务使用 contents:write，不运行源码构建脚本；Actions 已按官方版本固定完整提交 SHA。本地 lint/回归不等于云端已执行。仍应定期检查构建工具链安全补丁，并使用已有 `make vulncheck` 入口；尚未执行 govulncheck，也未将它纳入自动发布门槛，不能把先前修复记录当成持续安全检查。[Go 官方漏洞管理工具](https://go.dev/doc/security/vuln/)会结合调用关系分析已知漏洞；纯标准库程序仍需要关注构建工具链。
 
 ### 3. 可核对的预编译发行物
 
-先支持实际有需求的 `linux/amd64` 和 `linux/arm64`。它们是 CPU 架构目标，不表示已经支持 Windows/macOS；每个架构分别区分“交叉编译成功”和“实际运行验证”。
+已实现 `linux/amd64` 和 `linux/arm64` 打包，发布任务在对应原生 runner 构建和烟雾验证；完整应用回归在 amd64 执行。它们不表示支持 Windows/macOS；本地 arm64 交叉编译仍不能代替远端原生运行。
 
-建议 Release 提供：
+Release 草稿将提供：
 
 - 以版本/系统/架构命名的压缩包，内含二进制、许可证、简明说明及无凭据的示例。
 - `SHA256SUMS` 与验证命令、该版本的变更说明、Go 版本及来源提交。
-- 后续有需求再加来源证明或签名。校验和用于核对下载字节，单独放在同一发布页并不等价于独立身份认证。
+- 签名和来源证明仍待后续需求；校验和用于核对下载字节，单独放在同一发布页并不等价于独立身份认证。
 
-不必先引入 GoReleaser，现有 Makefile 加小脚本和 Actions 就能完成。打包使用明确文件清单，不能把整个工作目录、tmp 或运行状态压进去。
+使用 Makefile、小型 Bash 脚本和 Actions，没有引入 GoReleaser。打包采用文件白名单，测试放置运行数据诱饵并检查隔离，不打包整个工作目录。草稿需维护者核对后公开，尚未实际触发远端工作流或生成公开发行物。
 
-当前 `VERSION` 来自 git describe，适合开发构建；`BUILD_TIME` 默认取当前时间，因此同一提交的重复构建不保证逐字节一致。若要声称可复现，需固定版本、工具链、构建时间与归档元数据并实际比较产物。没有必要先做出该承诺才能提供可靠下载。
+普通 `make build` 保留 git describe/当前构建时间；发布包明确使用标签版本、提交 UTC 时间，规范 tar/gzip 元数据，BUILDINFO 记录完整来源和工具链。尚未完成跨机器相同工具链的产物比较，不声称逐字节可复现。
 
 ### 4. 版本记录和安装说明
 
@@ -130,7 +130,7 @@ systemd 部署指南已补充停服备份、权限与密钥保留、二进制替
 
 1. 许可证、CHANGELOG 和 SECURITY 文档已完成；确定公开仓库地址和私密漏洞报告渠道，整理当前说明，补简短贡献入口。
 2. systemd 示例、升级/恢复说明和只读 check 已实现；按目标主机完成实际部署验收。
-3. 建最小 CI 和按版本触发的完整发布验证，交付 Linux amd64/arm64 压缩包及校验和。
+3. CI、完整发布验证与 Linux amd64/arm64 打包已实现；在正式仓库验证真实 Actions、原生 runner 和 Release 草稿，再由维护者公开发行。
 4. 根据部署反馈补本地诊断、状态格式演进、文件列表体验和浏览器/性能基线。
 
-用户已选择 MIT，要求添加 CHANGELOG、SECURITY 文档、只读 check 命令和 systemd 配套；正式仓库地址、私密漏洞报告渠道和其余建议仍待明确或实施。check 已运行相关回归、竞态、静态和实际进程验证，systemd 单元已静态验证，具体范围见 SESSION_STATE.md。未安装工具、未部署、未打标签或推送。
+用户已选择 MIT，要求添加 CHANGELOG、SECURITY 文档、只读 check、systemd 和 CI/releases 配套；正式仓库地址、私密漏洞报告渠道和其余建议仍待明确或实施。相关回归与工作流本地验证范围见 SESSION_STATE.md。开发检查工具 actionlint 仅下载到 tmp，产品依赖不变；未部署、未在当前仓库打标签、未推送或创建远端 Release。
