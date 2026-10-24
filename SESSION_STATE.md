@@ -206,6 +206,12 @@ CLI 新增仅 code 可用的 --base-url http(s)源地址，在参数解析阶段
 
 最终验证：Go 1.27.3 下 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、`make vet`、`make build`、二进制 `--version` 和 `git diff --check` 均通过。额外用 Node 在仓库 tmp 校验静态脚本语法和模拟 DOM，验证只在提交时填字段、重复提交不重复追加、GET 表单排除及 Intl 缺失降级。原有确认、隔离、并发、持久化和日志脱敏测试继续通过。仍跳过沙箱受限的 Unix socket 测试；未运行真实浏览器或 govulncheck。未改实际配置或重启服务；用户随后要求提交，本轮代码、测试和文档随客户端审计日志提交保存。
 
+### unblock 结果说明（2026-10-24）
+
+本轮开发开始前 HEAD 为 30f6007，工作区干净。用户指出 unblock 对不在名单的 IP 提示不明确，随后授权修改。新增可选 JSON unblock 对象，返回 blacklist_removed、temporary_removed、message；无匹配记录仍幂等成功，明确说明未删除记录。单个 IPv4（含 /32）附带 still_blocked 和可选 covering_blacklist；只计算剩余永久条目覆盖，不把网段结果概括为全部解封。日志同步记录计数和提示。未匹配永久条目不再改写黑名单，没有临时删除也不额外保存状态；有效临时封禁按 cleanup 后的记录计数。临时删除保存失败时恢复内存封禁并返回错误，不输出成功结果；永久文件与状态文件仍非跨文件事务，保存状态失败可能发生在永久条目已删除之后，应修复错误后检查 status 或重试。
+
+新增无匹配、仅临时/仅永久/两者同时、较大网段覆盖、CIDR 规范化、显式 /32、重复执行、无关记录保留、零计数 JSON 及持久化失败恢复测试。首次保存失败夹具试图直接在已有 state.json 上建目录而失败，修正为先重命名测试状态文件后重跑通过。最终 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、`make vet`、`make build`、帮助输出及 `git diff --check` 均通过；仍跳过沙箱受限 Unix socket 测试，未跑真实浏览器或 govulncheck。README、帮助和安全审查记录已同步，未修改实际配置或重启服务；用户随后要求提交，本轮代码、测试和文档随 unblock 结果说明提交保存。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

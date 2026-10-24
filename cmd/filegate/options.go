@@ -23,6 +23,8 @@ Choose exactly one action (no default action):
   logout ALIAS           Invalidate all sessions for a directory alias
   block IP_OR_CIDR       Add a permanent blacklist entry (no expiry)
   unblock IP_OR_CIDR     Remove an entry and matching temporary bans
+                         Report removal counts; no match is not an error.
+                         For a single IP, report remaining blacklist coverage.
 
 Options:
   --help                 Show this help

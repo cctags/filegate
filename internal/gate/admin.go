@@ -22,6 +22,7 @@ type Request struct {
 	TTL    string `json:"ttl,omitempty"`
 }
 type Reply struct {
+	Unblock   *UnblockResult       `json:"unblock,omitempty"`
 	Error     string               `json:"error,omitempty"`
 	Code      string               `json:"code,omitempty"`
 	URL       string               `json:"url,omitempty"`
@@ -33,6 +34,14 @@ type Reply struct {
 	Sessions  int                  `json:"sessions"`
 }
 
+type UnblockResult struct {
+	Message           string   `json:"message"`
+	BlacklistRemoved  int      `json:"blacklist_removed"`
+	TemporaryRemoved  int      `json:"temporary_removed"`
+	StillBlocked      *bool    `json:"still_blocked,omitempty"`
+	CoveringBlacklist []string `json:"covering_blacklist,omitempty"`
+}
+
 // All state mutations are owned by the running server, including CLI requests.
 func (a *App) Admin(r Request) (out Reply) {
 	defer func() {
@@ -42,6 +51,14 @@ func (a *App) Admin(r Request) (out Reply) {
 			action = r.Action
 		}
 		fields := []any{"action", action, "success", out.Error == ""}
+		if result := out.Unblock; result != nil {
+			fields = append(fields, "blacklist_removed", result.BlacklistRemoved,
+				"temporary_removed", result.TemporaryRemoved, "message", result.Message)
+			if result.StillBlocked != nil {
+				fields = append(fields, "still_blocked", *result.StillBlocked,
+					"covering_blacklist", result.CoveringBlacklist)
+			}
+		}
 		if out.Error == "" {
 			switch action {
 			case "code", "logout":
@@ -150,20 +167,27 @@ func (a *App) Admin(r Request) (out Reply) {
 		}
 		lines := []string{"# Managed by filegate; individual IPs and CIDR networks are supported."}
 		found := false
+		result := &UnblockResult{}
 		for _, v := range list {
 			if v == p {
 				found = true
 				if r.Action == "unblock" {
+					result.BlacklistRemoved++
 					continue
 				}
 			}
 			lines = append(lines, v.String())
+			if r.Action == "unblock" && p.Bits() == 32 && v.Contains(p.Addr()) {
+				result.CoveringBlacklist = append(result.CoveringBlacklist, v.String())
+			}
 		}
 		if r.Action == "block" && !found {
 			lines = append(lines, p.String())
 		}
-		if e = atomicWrite(a.cfg.Blacklist, []byte(strings.Join(lines, "\n")+"\n")); e != nil {
-			return fail(e)
+		if r.Action == "block" || found {
+			if e = atomicWrite(a.cfg.Blacklist, []byte(strings.Join(lines, "\n")+"\n")); e != nil {
+				return fail(e)
+			}
 		}
 		if r.Action == "block" {
 			for k, v := range a.sessions {
@@ -173,15 +197,35 @@ func (a *App) Admin(r Request) (out Reply) {
 				}
 			}
 		} else {
-			for k := range a.state.Bans {
+			removed := make(map[string]time.Time)
+			for k, expiry := range a.state.Bans {
 				ip, _ := netipAddr(k)
 				if p.Contains(ip) {
+					removed[k] = expiry
 					delete(a.state.Bans, k)
 				}
 			}
-			if e = a.save(); e != nil {
-				return fail(e)
+			if len(removed) > 0 {
+				if e = a.save(); e != nil {
+					for k, expiry := range removed {
+						a.state.Bans[k] = expiry
+					}
+					return fail(e)
+				}
 			}
+			result.TemporaryRemoved = len(removed)
+			result.Message = "Matching ban records removed."
+			if result.BlacklistRemoved == 0 && result.TemporaryRemoved == 0 {
+				result.Message = "No matching ban records found."
+			}
+			if p.Bits() == 32 {
+				blocked := len(result.CoveringBlacklist) > 0
+				result.StillBlocked = &blocked
+				if blocked {
+					result.Message += " IP is still blocked by a remaining blacklist entry."
+				}
+			}
+			out.Unblock = result
 		}
 	case "status":
 		for _, c := range a.state.Codes {
