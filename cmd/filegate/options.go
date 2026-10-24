@@ -47,7 +47,7 @@ Options may appear in any order. Values accept --option VALUE or
 code, etc.); prefixed actions such as --serve and single-dash options are rejected.
 
 Configuration defaults written by init:
-  listen                 0.0.0.0:8080 (all IPv4 interfaces)
+  listen                 0.0.0.0:17342 (all IPv4 interfaces)
   root                   content
   state_dir              state
   blacklist              blacklist.txt
@@ -86,7 +86,7 @@ Examples:
 
   # 2. Start the server. Keep this terminal open; use another for management.
   filegate --config tmp/demo/config.json serve
-  # Defaults: browse http://SERVER_IP:8080; use the listen port from your config.
+  # Defaults: browse http://SERVER_IP:17342; use the listen port from your config.
   # Colored levels appear on a terminal; plain logs go to tmp/demo/logs/filegate.log.
   # Redirected console output is uncolored unless logging.color is always.
   # Logs rotate at 10 MiB / UTC date changes; keep <=10 archives for <=7 days.
