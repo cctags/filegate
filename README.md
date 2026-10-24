@@ -382,6 +382,8 @@ make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 
 测试审查基线、后续补充结果和仍未验证的范围见 [TEST_REVIEW.md](TEST_REVIEW.md)。操作步骤见 [tests/README.md](tests/README.md)：默认测试包含 fuzz 种子，但不启动实际服务进程或浏览器；可选集成测试仅使用仓库 tmp 下的独立数据和回环 IPv4，不操作已有 demo。浏览器回归验证启用/禁用脚本的登录、跨站链接确认、CSP、时区和退出；支持 `CHROME_BIN=/usr/bin/chromium make test-browser`，Firefox 仍需独立验收。Go 检查范围限定产品包，避免扫描 tmp 中正在编译的临时源码。
 
+公开发布、部署配套及后续维护的对比建议见 [项目评估](docs/PROJECT_REVIEW.md)；该文档区分已有能力和待实施建议，许可证已选定为 MIT，CI 和发行物等仍待实施。
+
 Codex 的日常功能开发按改动影响选择相关测试，不要求每次都跑全套；认证、隔离、持久化或并发等共享逻辑变更应扩大回归范围。创建/移动版本标签或发布前，必须针对目标版本运行完整自动化检查：test、vet、build、进程集成、Chrome 浏览器及四个 fuzz 入口各 30 秒。失败或缺少环境时先报告，不能把跳过视为通过；Firefox 等人工验收单独记录。详细执行规则已写入 AGENTS.md 和测试指南。测试后检查进程、监听与浏览器 profile 的清理情况，报告和构建缓存默认保留。
 
 代码入口在 `cmd/filegate/`，配置、状态、管理通信与 Web 请求逻辑在 `internal/gate/`。没有第三方模块依赖；修改后使用 `gofmt`，重点保持授权和状态写入规则可审查。
@@ -399,3 +401,7 @@ PATH="$PWD/tmp/tools:$PATH" make vulncheck
 ```
 
 扫描需要访问漏洞数据库；结果需结合功能是否启用、调用方式和触发前提分析。发布前先完成测试与扫描，再构建交付文件；安装新 Go 后仍需重编译并重启，旧二进制不会自动获得标准库修复。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)，版权署名为 `Filegate contributors`。允许使用、修改、商业使用及分发，须保留版权和许可声明；软件按原样提供，不附带担保。完整条款见 LICENSE。

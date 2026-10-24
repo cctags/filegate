@@ -256,6 +256,18 @@ Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp �
 
 新增 help_test.go 覆盖全部主题和命令、无配置/无副作用、参数冲突、上下文错误提示、默认长度、完整参考保留、颜色不改正文、重定向和输出错误；原来 --help serve 的拒绝测试已随新接口调整。首次长度内容测试误把总览中的专题提示当成完整限制章节，修正为匹配完整章节标题后通过。受影响 CLI 竞态测试和真实进程集成测试已通过，make vet/build 通过；伪终端验证实际彩色输出及 NO_COLOR，纯文本样例保留 tmp/help-overview.txt、help-code.txt、help-examples.txt。最终 CLI 竞态测试、make vet 和 git diff --check 通过；进程测试已等待子进程退出，tmp/build、tmp/test-tmp 为空，没有遗留 process/browser 夹具。未运行浏览器或 Web 输入 fuzz（帮助改动不影响 Web 行为），未创建标签或重启实际服务。最后的配色/括号调整也通过帮助专项测试、构建及终端检查；用户随后要求提交，分层帮助、最终配色、测试和文档随本次提交保存。
 
+### GitHub 同类项目对比评估（2026-10-24）
+
+用户要求从当前状态对比 GitHub 项目，分析需要添加、修改或删除的内容。开发基线 HEAD 为 66abbd2、工作区干净，本地未配置 remote；v0.1 指向 122566e，HEAD 在其后 10 个提交。核对本地文件/关键实现，并在线查阅 Dufs、miniserve、copyparty、File Browser 和 GitHub/Go 官方文档，新增 docs/PROJECT_REVIEW.md；README 添加入口。File Browser 原仓库目前已归档，作为历史参考，不能作为持续安全维护的部署推荐。
+
+主要建议是发布/运维配套优先：由所有者确定许可证和正式仓库地址，补 SECURITY/CHANGELOG/贡献入口、分级 CI 和 Linux amd64/arm64 发行物/校验；完整 systemd 示例、无副作用 check、升级/恢复说明；再考虑本地诊断、状态格式版本、小幅 UI/结构整理和浏览器/性能基线。维护已定的 Go 标准库、Linux/IPv4、只读内容和本机管理边界，不因同类项目功能更多就加入上传/编辑/WebDAV/命令执行或更换语言。
+
+建议归档 SESSION_STATE 的过时当前快照、精简 README/AGENTS 重复内容，而非删除安全回归或用户 tmp 数据。首轮仅记录建议，随后用户已选择 MIT 并要求修改提交，见下文。未实现新命令或 CI、修改权限、安装工具、打标签、部署或推送，也未重新进行安全审计或执行 govulncheck；代码测试未重复执行。
+
+### MIT 许可证（2026-10-24）
+
+用户明确选择 MIT 并要求修改和提交。新增标准 LICENSE，使用项目通用版权署名 `Copyright (c) 2026 Filegate contributors`，未填个人姓名或邮箱；README 添加许可入口及简短说明，项目对比评估将许可证标记为完成，其余建议保持待实施。此前尚未提交的评估文档和入口随本次一并保存。仅许可证与文档变更，核对 MIT 正文、链接和 git diff --check，不运行代码测试，也不改动运行资源或发布标签。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
