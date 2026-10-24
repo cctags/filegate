@@ -29,7 +29,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
 # An explicit allowlist prevents runtime credentials and arbitrary tmp files
 # from entering a release. init generates a new commented config after install.
 for file in README.md LICENSE CHANGELOG.md SECURITY.md SECURITY_REVIEW.md TEST_REVIEW.md \
-    deploy/README.md deploy/filegate.service docs/PROJECT_REVIEW.md docs/RELEASING.md tests/README.md; do
+    deploy/README.md deploy/filegate.service docs/PROJECT_REVIEW.md docs/RELEASING.md docs/OPERATIONS.md tests/README.md; do
     [[ -f "$file" && ! -L "$file" ]] || { echo "Missing regular release input: $file" >&2; exit 1; }
     install -m 0644 "$file" "$package/$file"
 done

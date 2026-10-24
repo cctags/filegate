@@ -4,6 +4,7 @@
 
 Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filegate/` contains startup, CLI parsing, build metadata, and tests. `internal/gate/` contains configuration/reload, state, local administration, HTTP handlers, previews, and tests. `internal/logging/` provides colored console output, file rotation and retention. HTML/CSS is embedded in the handler template.
 `deploy/` contains the systemd unit and installation/operation guide; keep their paths and permissions aligned with the CLI and README.
+`docs/OPERATIONS.md` covers upgrades, stopped backups and isolated recovery. Keep it in the release package allowlist and preserve its rule: deny all Web access while revoking restored codes, then restore the reviewed permanent blacklist path and restart. Never use `unblock 0.0.0.0/0` as recovery cleanup or silently reset state.
 `.github/workflows/` contains scoped CI, reusable validation and tag-triggered draft releases. `scripts/` and `tests/release.sh` handle release guards, packaging and smoke tests; see `docs/RELEASING.md`.
 
 ## Build, Test, and Development Commands

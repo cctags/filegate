@@ -61,6 +61,8 @@ cd filegate_vX.Y.Z_linux_amd64
 
 预编译用户无需 Go：按 [systemd 部署指南](../deploy/README.md)准备专用账号和权限，跳过指南中的 `make build`，从解包目录安装 `./filegate`，再执行首次初始化或已有部署的升级步骤。源代码构建仍使用 `make build`。
 
+已有部署的停服备份、二进制回退和恢复后的旧码撤销，按 [运维指南](OPERATIONS.md)操作；不要在升级时重新运行 `init`。
+
 ## 本地验证打包
 
 ```bash

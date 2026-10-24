@@ -310,6 +310,18 @@ deploy/README.md 提供新部署完整流程及已有部署迁移注意事项：
 
 清理：沙箱外只读检查当前用户，无 Go/Filegate/Node/Chrome/crashpad 等相关测试进程，无临时打包/烟雾/Git fixture/浏览器目录或测试 socket。保留 tmp/ci-full-validation.log、tmp/release-regressions.log、actionlint 工具与构建/fuzz 缓存；未使用或修改 tmp/demo。README、AGENTS、CHANGELOG、测试指南和项目评估已同步，新增 docs/RELEASING.md。用户随后要求提交，本轮将工作流、辅助脚本、打包回归及相关文档一并提交，提交信息使用 `ci: Add validation and draft release workflows`；未创建当前仓库标签、推送或发布。
 
+### 升级、备份与恢复指南（2026-10-24）
+
+用户要求设计并实现升级、备份与恢复指南；基线为 3b8594a，开始时工作区干净。本轮新增 docs/OPERATIONS.md，不新增 backup/restore/revoke-all 等 CLI。指南采用已含 check 的当前版本和标准 systemd 布局，包含数据清单/内存与落盘边界、停服且暂停外部写入者的一致备份、私有备份目录与 SHA256、TLS/单元/中文内容、排除 socket/锁、候选二进制检查和同文件系统替换、保留最新状态优先的回退、隔离解包与重新设置 UID/GID/权限、状态损坏/密钥泄露的明确授权重置和目标主机验收。历史 v0.1 不直接套用，未知状态版本兼容性不作保证。
+
+恢复默认配置临时指向 state/recovery-blacklist.txt（0.0.0.0/0），拒绝所有常规 IPv4 Web 请求，保留本机 Unix 管理。先核对映射及较新封禁记录，再通过 status/revoke ID 清空恢复的码；任一步失败保持全封禁。确认持久化后停服、切回已审核的原永久黑名单路径并重启，再发新码。禁止用 unblock 0.0.0.0/0 清理隔离，因为会同时删除临时封禁；不手改 state.json，不把恢复旧备份或生成新密钥描述为永久排除所有未来同字串。恢复前旧部署保留在 root 私有目录，备份及恢复材料放在内容根外。
+
+README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同步入口与维护边界；scripts/package-release.sh 白名单加入运维指南。验证：各受影响文档相对链接、Bash 示例 bash -n、git diff --check 及 make test-release 通过（含原生打包烟雾与 arm64 交叉编译）。没有改 Go 源码，不重复完整竞态/浏览器/fuzz 或实际发布。
+
+另以 tmp/rehearse-operations.py 在独立虚构部署演练真实进程：GNU tar 停服归档、SHA256、中文文件、备份后消费访问码、恢复旧快照确可使码重新有效；全封禁时 Web 403 但本机管理可逐项撤销，重启切回原黑名单后旧码/旧会话失效，永久和持久化临时封禁保留，新码可读取中文且隔离其他目录。首次沙箱内因 socket 权限失败，获准沙箱外运行后通过。会话被用户中断后恢复任务，核对日志和工作区继续完成，未重复生产操作。仅同版本、同用户、回环 IPv4 演练，不声称完成真实 systemd/root 权限、TLS/ACL/SELinux、跨版本迁移、介质故障、加密异地备份或实际生产恢复验收。
+
+沙箱外检查确认无 Filegate/Go/Node/Chrome 等相关进程、演练/打包临时目录或测试 socket；所有子进程已等待退出，虚构部署自动删除。保留 tmp/operations-rehearsal.log、tmp/operations-package-test.log、演练脚本及构建缓存。未读取或改动 tmp/demo，不安装/启用服务、修改用户或主机部署。用户随后要求提交，本轮将指南、文档入口和发行包白名单一并提交，提交信息使用 `docs: Add upgrade, backup and recovery procedures`；未打标签、推送或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
