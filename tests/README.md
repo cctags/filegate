@@ -29,6 +29,39 @@ SIGHUP reloads, SIGTERM/SIGINT, persistent consumption and unblocking, restart,
 second instances, occupied ports, unavailable logging, invalid certificates,
 and TLS/HTTP2 using certificate files and a test trust store.
 
+## Choosing validation scope
+
+For ordinary feature work, Codex chooses checks based on the affected behavior.
+Run relevant regression and package tests; add race, vet and build checks where
+applicable. Startup/CLI/reload/persistence changes call for process tests;
+login/cookie/UI/CSP changes call for browser tests; input parsing changes call
+for the relevant fuzz target. Shared security or concurrency changes justify a
+broader regression run. Documentation-only edits need accuracy and diff checks.
+Previously successful checks remain valid when the tested code is unchanged.
+
+Before creating/moving a version tag or publishing a release, run the complete
+automated suite against the intended clean revision, in addition to the normal
+checks below. This is a Codex repository instruction, not a Git hook:
+
+```bash
+make test
+make vet
+make build
+make test-integration
+make test-browser
+make fuzz FUZZ=FuzzStripJSONComments FUZZTIME=30s
+make fuzz FUZZ=FuzzAccessAlias FUZZTIME=30s
+make fuzz FUZZ=FuzzRelativePath FUZZTIME=30s
+make fuzz FUZZ=FuzzClientMetadata FUZZTIME=30s
+```
+
+Report failures and unavailable prerequisites before proceeding with the tag or
+release; skipped tests are not passing tests. Record Firefox, media and other
+manual checks separately. Rebuild tagged release binaries and verify version
+metadata after creating the tag. Finish by verifying test processes, listeners
+and browser profiles are cleaned up. Keep reports/caches unless asked to remove
+them, and preserve user data.
+
 ## Automated browser scope
 
 `browser.cjs` starts an isolated headless Chrome profile and controls it through

@@ -234,6 +234,14 @@ Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp �
 
 重新注入 status 摘要暴露、全局下载上限缺失、全局登录频率缺失三个 overlay 错误，新测试均按预期失败，证明原盲区已补上；没有保留故意错误。普通新测试首次在沙箱拒绝 socket，获准重跑；协议的长 socket 路径夹具已修正。没有运行 Firefox、断电/fsync 故障、跨 UID/移动端/真实媒体验收或 govulncheck；没有增加 CI 工作流或修改部署数据。README、AGENTS、测试审查文档均已同步；用户随后要求提交，首轮审查记录、测试补强及开发入口随本次测试提交保存。
 
+### 日常与版本验证规则（2026-10-24）
+
+用户明确希望减少单功能开发的测试耗时，授权 Codex 按影响选择相关基础/回归测试；打标签等重要行为前要完整验证。已将持久规则写入 AGENTS.md、README.md、tests/README.md：普通开发选择受影响包与回归，按需 race/vet/build/进程/浏览器/fuzz，共享安全或并发逻辑扩大范围；仅文档检查准确性与 diff，代码未变且已测时，后续仅要求提交不重复全部测试。
+
+创建/移动版本标签或发布前，对干净目标版本执行 make test、vet、build、test-integration、test-browser，以及 JSONC/AccessAlias/RelativePath/ClientMetadata 四个 fuzz 各 30 秒。失败/环境不可用先报告，不能跳过当通过；Firefox/媒体/部署等人工项单独记录，标签后构建交付二进制时复核版本元数据。这是仓库对 Codex 的执行要求，没有添加 Git hook 或 CI。结束时检查测试进程、监听和浏览器 profile 清理，保留用户数据以及默认保留的报告/缓存。
+
+本轮仅修改文档，执行命令与现有 Makefile/fuzz 名称核对，git diff --check 通过；未运行代码测试、创建标签或改动实际服务。用户随后要求提交，分级验证规则及文档随本次提交保存。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
