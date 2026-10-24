@@ -32,6 +32,9 @@ type State struct {
 type Session struct {
 	Alias, CSRF, IP string
 	Created, Seen   time.Time
+	ClientTimezone  string
+	ClientOffset    int
+	HasClientOffset bool
 }
 type attempts struct {
 	Since, FailureSince time.Time

@@ -49,7 +49,7 @@ http://192.0.2.10:17342/access?code=ab01234567
 
 待确认状态只在内存中保存 HMAC 摘要，不保存原始访问码；有效期固定 5 分钟，绑定待确认 Cookie 和来源 IPv4，全局最多 1000 项、每 IP 最多 10 项。Cookie 为 HttpOnly、SameSite=Lax、Path=/access，HTTPS 时 Secure；Lax 用于从外部链接跳转，POST 另有同源和随机 CSRF 检查。需要启用 Cookie。同一浏览器只保留最近打开的待确认链接，多标签页旧确认会失效；IPv4 改变、服务重启、确认失败或页面过期时，请重新打开原链接或使用输入框。待确认到期不延长原访问码的有效期。
 
-确认仍使用原有封禁、失败计数、频率限制、过期、撤销、目录映射及持久化检查；准备链接时不提前判断码是否有效，因此出现确认页不代表码仍可用。语言切换在干净地址上完成，无须 JavaScript，现有 CSP 保持禁止脚本。
+确认仍使用原有封禁、失败计数、频率限制、过期、撤销、目录映射及持久化检查；准备链接时不提前判断码是否有效，因此出现确认页不代表码仍可用。语言切换在干净地址上完成；登录和确认操作不依赖 JavaScript。生成页面附带仅用于记录时区的固定脚本，CSP 仅按哈希允许这段脚本，文件预览继续禁止脚本。
 
 链接本身是敏感凭据。应用日志省略查询、Cookie 和表单正文；链接入口使用 `Referrer-Policy: origin`，后续请求只建议携带来源，不携带完整带码 URL，其他页面继续使用 same-origin。清理地址不能保证消除浏览器历史、消息平台、初始代理日志等留痕。HTTP 下的访问码和会话仍是明文，跨不可信网络应使用 HTTPS。
 
@@ -298,6 +298,28 @@ kill -HUP "$(pidof -s filegate)"
 - 修改 `logging` 任意字段需重启；SIGHUP 会拒绝这类配置变更并保留原配置。管理命令仍向 stdout 返回 JSON，不单独打开文件日志；管理操作由服务进程记录。
 
 默认记录启动/停止、登录/退出、封禁、配置重载和管理操作。HTTP 访问日志包括 IP、方法、路径、响应状态、字节数、耗时和可识别的目录别名；文件请求还记录实际是否按附件返回以及是否显式要求下载。成功请求为 INFO，4xx 为 WARN，5xx 为 ERROR；`status` 成功查询仅在 DEBUG 记录。
+
+客户端审计信息自动加入登录成功/失败、来源拒绝、封禁、退出事件和 HTTP 访问记录，无须修改配置：
+
+| 字段 | 含义与来源 |
+| --- | --- |
+| `request_id` | 服务端生成的单次请求编号；同时通过 `X-Request-ID` 响应头返回，用于关联事件和访问记录，不是登录凭据 |
+| `ip`、`ip_source` | 实际 TCP 对端 IPv4，来源固定为 socket；不采用代理转发头，NAT/VPN/代理下可能是中间节点地址 |
+| `browser`、`browser_version`、`os` | 按 User-Agent 和已发送的平台 Client Hints 识别；版本只保留有界数字格式，未知客户端记 unknown |
+| `device`、`client_kind` | 推测 desktop/mobile/tablet，以及 browser/command_line/bot；均不是设备或真人身份认证 |
+| `client_language` | Accept-Language 中可识别且优先级最高的语言标签，与手动选择的界面语言可以不同 |
+| `timezone`、`utc_offset_minutes` | 浏览器自报的时区名及 UTC 偏移分钟数；东区为正，例如 Asia/Shanghai 通常为 480 |
+| `timezone_source` | form_reported 为本次表单自报；session_reported 为有效会话中最近一次已知值；unavailable 为未提供；unverified_form 为无效或无法验证的表单值 |
+| `http_version`、`https` | HTTP 协议版本和是否直接使用 TLS |
+| `operation`、`outcome`、`reason` | 区分表单登录、链接确认、退出等操作，以及成功、失败、拒绝和异常原因 |
+
+浏览器、系统、语言和时区属于客户端自报或推测数据（`client_info_source=client_reported`），可以缺失或被伪造，不能作为授权或封禁判断依据。User-Agent 可能被浏览器简化，Windows 10/11 等也不能可靠区分；这里只记录通用系统名称，不猜测精确系统版本。不直接保存原始 User-Agent、Client Hints 或 Accept-Language，以减少任意头内容进入日志的风险。
+
+时区不是浏览器默认发送的 HTTP 信息。页面内的固定本地脚本使用 Intl.DateTimeFormat 和 getTimezoneOffset，在用户提交登录、链接确认或退出表单时填写两个隐藏字段；脚本不自动提交表单。生成页面的 CSP 只允许该脚本的 SHA-256 哈希，不允许任意同源脚本或任意内联脚本；文件响应继续保持原来的严格 CSP 和源码预览策略。
+
+时区仅用于日志；已知值随会话在内存中保留，供后续浏览请求审计使用，不写入状态文件，也不新增 Cookie。脚本被禁用、接口不可用、未完成表单读取或请求在来源/封禁检查阶段被拒绝时，时区可能为 unknown 或已有会话缓存值；元数据缺失/不合法不会阻止正常登录，原有请求大小限制仍生效。服务端验证时区名使用本机时区库，缺少 tzdata 时可能无法验证名称，但可记录合法的数字偏移。日志主时间戳仍是服务端时间。
+
+失败原因包括 invalid_used_or_expired_code、invalid_origin、invalid_or_expired_confirmation、ip_blocked、ip_rate_limit、too_many_invalid_codes、global_login_rate_limit 和 persistence_failure 等。已使用和无效访问码不保留明文历史，因此不强行区分“错误、已用、过期”。
 
 访问日志省略查询字符串、请求正文、Cookie、Authorization 和会话标识；管理日志不保存访问码。来源检查日志只保留 Origin 的协议和主机，丢弃异常用户信息、路径与查询；Fetch-Site 只记录已知枚举值。日志中的文件路径仅说明发生了什么，不代表绕过权限读取内容。浏览器已下载的内容仍无法撤回。
 

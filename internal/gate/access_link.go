@@ -54,17 +54,20 @@ func (a *App) accessPage(w http.ResponseWriter, r *http.Request) {
 	// Parse explicitly: URL.Query silently discards malformed query parameters.
 	query, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
+		setRequestResult(r, "denied", "invalid_link_format")
 		webError(w, r, "InvalidLink", 400)
 		return
 	}
 	if codes, ok := query["code"]; ok {
 		if len(codes) != 1 {
+			setRequestResult(r, "denied", "invalid_link_format")
 			webError(w, r, "InvalidLink", 400)
 			return
 		}
 		code := strings.ToLower(strings.TrimSpace(codes[0]))
 		alias := accessAlias(code)
 		if alias == "" {
+			setRequestResult(r, "denied", "invalid_link_format")
 			webError(w, r, "InvalidLink", 400)
 			return
 		}
@@ -80,6 +83,7 @@ func (a *App) accessPage(w http.ResponseWriter, r *http.Request) {
 	}
 	pending, current, ok := a.accessConfirmation(r)
 	if !ok {
+		setRequestResult(r, "denied", "invalid_or_expired_confirmation")
 		render(w, r, 403, view{Login: true, Error: "PendingExpired"})
 		return
 	}
@@ -142,11 +146,14 @@ func (a *App) accessConfirmation(r *http.Request) (pendingLogin, string, bool) {
 func (a *App) confirmAccess(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	if r.ParseForm() != nil {
+		setRequestResult(r, "denied", "invalid_or_expired_confirmation")
 		render(w, r, 403, view{Login: true, Error: "PendingExpired"})
 		return
 	}
+	updateClientTimezone(r)
 	digest := a.takeConfirmation(r, r.PostForm.Get("csrf"))
 	if digest == "" {
+		setRequestResult(r, "denied", "invalid_or_expired_confirmation")
 		render(w, r, 403, view{Login: true, Error: "PendingExpired"})
 		return
 	}

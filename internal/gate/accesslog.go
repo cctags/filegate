@@ -57,13 +57,28 @@ func (w *loggedResponse) Write(data []byte) (int, error) {
 
 func (a *App) accessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = attachRequestAudit(r)
+		audit := auditFor(r)
+		// Generated locally, never trust or echo a client-provided tracing identifier.
+		w.Header().Set("X-Request-ID", audit.requestID)
 		started := time.Now()
 		response := &loggedResponse{ResponseWriter: w}
-		ip, _ := clientIP(r)
 		alias := ""
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			a.mu.Lock()
-			alias = a.sessions[cookie.Value].Alias
+			session, exists := a.sessions[cookie.Value]
+			now := time.Now()
+			if exists && !a.closed && now.Sub(session.Seen) < a.cfg.idle && now.Sub(session.Created) < a.cfg.max {
+				alias = session.Alias
+				if session.ClientTimezone != "" {
+					audit.timezone = session.ClientTimezone
+					audit.timezoneSource = "session_reported"
+				}
+				if session.HasClientOffset {
+					audit.utcOffset = session.ClientOffset
+					audit.timezoneSource = "session_reported"
+				}
+			}
 			a.mu.Unlock()
 		}
 		defer func() {
@@ -75,14 +90,36 @@ func (a *App) accessLog(next http.Handler) http.Handler {
 			if panicValue != nil {
 				status = http.StatusInternalServerError
 			}
-			fields := []any{"ip", ip.String(), "method", r.Method, "path", r.URL.Path, "status", status, "bytes", response.bytes, "duration_ms", time.Since(started).Milliseconds()}
+			fields := clientAttributes(r)
+			fields = append(fields, "operation", requestOperation(r), "method", r.Method, "path", r.URL.Path, "status", status, "bytes", response.bytes, "duration_ms", time.Since(started).Milliseconds())
+			if audit.alias != "" {
+				alias = audit.alias
+			}
 			if alias != "" {
 				fields = append(fields, "alias", alias)
 			}
 			if strings.HasPrefix(r.URL.Path, "/file/") {
 				fields = append(fields, "download", strings.HasPrefix(response.Header().Get("Content-Disposition"), "attachment"), "download_requested", r.URL.Query().Get("download") == "1")
 			}
-			// Deliberately omit query strings, headers and bodies: they may contain
+			outcome, reason := audit.outcome, audit.reason
+			if panicValue != nil {
+				outcome, reason = "error", "handler_panic"
+			}
+			if outcome == "" {
+				switch {
+				case status >= 500:
+					outcome = "error"
+					reason = "server_error"
+				case status >= 400:
+					outcome = "denied"
+					reason = "http_error"
+				default:
+					outcome = "success"
+					reason = "completed"
+				}
+			}
+			fields = append(fields, "outcome", outcome, "reason", reason)
+			// Deliberately omit query strings, raw headers and bodies: they may contain
 			// access codes, Cookie values or other credentials.
 			if status >= 500 {
 				slog.Error("http request", fields...)

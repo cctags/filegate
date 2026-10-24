@@ -145,6 +145,7 @@ func (a *App) limitHTTP(next http.Handler) http.Handler {
 			next.ServeHTTP(writer, r)
 		default:
 			writer.Header().Set("Retry-After", "5")
+			setRequestResult(r, "denied", "concurrent_request_limit")
 			webError(writer, r, "Busy", http.StatusTooManyRequests)
 		}
 	})

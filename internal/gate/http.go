@@ -5,7 +5,6 @@ import (
 	"errors"
 	"html/template"
 	"io"
-	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -20,8 +19,9 @@ import (
 )
 
 const cookieName = "filegate_session"
+const baseCSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 
-var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="{{.Language}}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Text.Title}}</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main><nav aria-label="{{.Text.Language}}"><a href="{{.LanguageURL}}?lang=zh-CN" lang="zh-CN" hreflang="zh-CN">简体中文</a> · <a href="{{.LanguageURL}}?lang=en" lang="en" hreflang="en">English</a> · <a href="{{.LanguageURL}}?lang=auto">{{.Text.Automatic}}</a></nav>{{if .Confirm}}<h1>{{.Text.ConfirmHeading}}</h1><p>{{.Text.TargetDirectory}}: {{.Alias}}</p><p class="muted">{{.Text.ConfirmInstruction}}</p>{{if .CurrentAlias}}<p>{{.Text.CurrentDirectory}}: {{.CurrentAlias}}</p>{{end}}<p class="muted">{{.Text.ReplaceSession}}</p><form method="post" action="/access"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.ConfirmEnter}}</button></form><p><a href="/">{{.Text.ManualEntry}}</a></p>{{else if .Login}}<h1>{{.Text.Heading}}</h1><p class="muted">{{.Text.Instruction}}</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">{{.Text.Code}}</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="{{.Text.Example}}"></p><button>{{.Text.Enter}}</button></form>{{else}}<header><h1>{{.Text.Directory}} · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.Logout}}</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ {{.Text.Parent}}</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} {{$.Text.Bytes}}</span> · <a href="{{.URL}}?download=1">{{$.Text.Download}}</a>{{end}}</li>{{else}}<li class="muted">{{.Text.Empty}}</li>{{end}}</ul>{{end}}</main></html>`))
+var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="{{.Language}}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Text.Title}}</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main><nav aria-label="{{.Text.Language}}"><a href="{{.LanguageURL}}?lang=zh-CN" lang="zh-CN" hreflang="zh-CN">简体中文</a> · <a href="{{.LanguageURL}}?lang=en" lang="en" hreflang="en">English</a> · <a href="{{.LanguageURL}}?lang=auto">{{.Text.Automatic}}</a></nav>{{if .Confirm}}<h1>{{.Text.ConfirmHeading}}</h1><p>{{.Text.TargetDirectory}}: {{.Alias}}</p><p class="muted">{{.Text.ConfirmInstruction}}</p>{{if .CurrentAlias}}<p>{{.Text.CurrentDirectory}}: {{.CurrentAlias}}</p>{{end}}<p class="muted">{{.Text.ReplaceSession}}</p><form method="post" action="/access"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.ConfirmEnter}}</button></form><p><a href="/">{{.Text.ManualEntry}}</a></p>{{else if .Login}}<h1>{{.Text.Heading}}</h1><p class="muted">{{.Text.Instruction}}</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">{{.Text.Code}}</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="{{.Text.Example}}"></p><button>{{.Text.Enter}}</button></form>{{else}}<header><h1>{{.Text.Directory}} · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.Logout}}</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ {{.Text.Parent}}</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} {{$.Text.Bytes}}</span> · <a href="{{.URL}}?download=1">{{$.Text.Download}}</a>{{end}}</li>{{else}}<li class="muted">{{.Text.Empty}}</li>{{end}}</ul>{{end}}</main><script>{{.ClientScript}}</script></html>`))
 
 type entry struct {
 	Name, URL string
@@ -34,6 +34,7 @@ type view struct {
 	Login                            bool
 	Confirm                          bool
 	CurrentAlias                     string
+	ClientScript                     template.JS
 	Error, Alias, Path, CSRF, Parent string
 	Entries                          []entry
 }
@@ -55,6 +56,8 @@ func clientIP(r *http.Request) (netip.Addr, error) {
 func render(w http.ResponseWriter, r *http.Request, status int, v view) {
 	v.Language = requestLanguage(r)
 	v.Text = translations[v.Language]
+	v.ClientScript = template.JS(clientTimezoneScript)
+	w.Header().Set("Content-Security-Policy", clientTimezoneCSP)
 	v.LanguageURL = (&url.URL{Path: r.URL.Path}).String()
 	if v.Login {
 		v.LanguageURL = "/"
@@ -69,7 +72,7 @@ func render(w http.ResponseWriter, r *http.Request, status int, v view) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if e := page.Execute(w, v); e != nil {
-		slog.Error("render", "error", e)
+		clientLogger(r).Error("render", "error", e)
 	}
 }
 func sameOrigin(r *http.Request) bool {
@@ -106,9 +109,10 @@ func (a *App) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		w.Header().Set("Content-Security-Policy", baseCSP)
 		ip, e := clientIP(r)
 		if e != nil {
+			setRequestResult(r, "denied", "invalid_client_address")
 			webError(w, r, "InvalidSource", 400)
 			return
 		}
@@ -122,18 +126,20 @@ func (a *App) Handler() http.Handler {
 		}
 		a.mu.Unlock()
 		if e != nil {
-			slog.Error("blacklist unavailable", "error", e)
+			clientLogger(r).Error("blacklist unavailable", "error", e)
+			setRequestResult(r, "error", "blacklist_unavailable")
 			webError(w, r, "Unavailable", 503)
 			return
 		}
 		if blocked {
+			setRequestResult(r, "denied", "ip_blocked")
 			webError(w, r, "Blocked", 403)
 			return
 		}
 		if r.Method == "POST" && !sameOrigin(r) {
-			slog.Warn("request origin rejected", "ip", ip.String(), "host", r.Host,
-				"origin", logOrigin(r.Header.Get("Origin")), "fetch_site", logFetchSite(r.Header.Get("Sec-Fetch-Site")),
-				"https", r.TLS != nil)
+			setRequestResult(r, "denied", "invalid_origin")
+			clientLogger(r).Warn("request origin rejected", "host", r.Host,
+				"origin", logOrigin(r.Header.Get("Origin")), "fetch_site", logFetchSite(r.Header.Get("Sec-Fetch-Site")))
 			webError(w, r, "InvalidOrigin", 403)
 			return
 		}
@@ -186,11 +192,16 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	// Read untrusted network data before taking the shared state lock.
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	parseErr := r.ParseForm()
+	if parseErr == nil {
+		updateClientTimezone(r)
+	}
 	status, message, id := a.consumeLogin(r, parseErr)
 	completeLogin(w, r, status, message, id)
 }
 
 func completeLogin(w http.ResponseWriter, r *http.Request, status int, message, id string) {
+	outcome, reason := loginResult(status, message)
+	setRequestResult(r, outcome, reason)
 	if status != http.StatusSeeOther {
 		if status == http.StatusTooManyRequests {
 			w.Header().Set("Retry-After", "60")
@@ -231,7 +242,7 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 	}
 	blocked, err := a.blocked(ip)
 	if err != nil {
-		slog.Error("blacklist unavailable", "error", err)
+		clientLogger(r).Error("blacklist unavailable", "error", err)
 		return 503, "Unavailable", ""
 	}
 	if blocked {
@@ -258,7 +269,7 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 		v.Failures = 0
 	}
 	v.Count++
-	ban := func() {
+	ban := func(reason string) {
 		a.state.Bans[key] = now.Add(a.cfg.ban)
 		for k, s := range a.sessions {
 			if s.IP == key {
@@ -266,12 +277,12 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 			}
 		}
 		if e := a.save(); e != nil {
-			slog.Error("persist automatic ban", "error", e)
+			clientLogger(r).Error("persist automatic ban", "error", e)
 		}
-		slog.Warn("IP automatically banned", "ip", key)
+		clientLogger(r).Warn("IP automatically banned", "reason", reason, "ban_until", a.state.Bans[key])
 	}
 	if v.Count > a.cfg.AttemptsPerMinute {
-		ban()
+		ban("ip_rate_limit")
 		a.attempts[key] = v
 		return 403, "RateBanned", ""
 	}
@@ -291,9 +302,9 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 	if !valid {
 		v.Failures++
 		a.attempts[key] = v
-		slog.Warn("login failed", "ip", key)
+		clientLogger(r).Warn("login failed", "outcome", "failure", "reason", "invalid_used_or_expired_code", "failures", v.Failures)
 		if v.Failures >= a.cfg.MaxFailures {
-			ban()
+			ban("too_many_invalid_codes")
 			return 403, "FailureBanned", ""
 		}
 		return 401, "InvalidCode", ""
@@ -304,7 +315,7 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 	delete(a.state.Codes, matched.ID)
 	if e := a.save(); e != nil {
 		a.state.Codes[matched.ID] = matched
-		slog.Error("consume code", "error", e)
+		clientLogger(r).Error("consume code", "error", e)
 		return 503, "SaveFailed", ""
 	}
 	// Preserve IP request counts even after a successful login.
@@ -315,14 +326,32 @@ func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string
 	}
 	id := token()
 	created := time.Now()
-	a.sessions[id] = Session{Alias: matched.Alias, CSRF: token(), IP: key, Created: created, Seen: created}
-	slog.Info("login succeeded", "ip", key, "alias", matched.Alias, "code_id", matched.ID)
+	session := Session{Alias: matched.Alias, CSRF: token(), IP: key, Created: created, Seen: created}
+	if audit := auditFor(r); audit != nil {
+		if audit.timezone != "unknown" {
+			session.ClientTimezone = audit.timezone
+		}
+		if offset, ok := audit.utcOffset.(int); ok {
+			session.ClientOffset = offset
+			session.HasClientOffset = true
+		}
+	}
+	a.sessions[id] = session
+	if audit := auditFor(r); audit != nil {
+		audit.alias = matched.Alias
+	}
+	clientLogger(r).Info("login succeeded", "outcome", "success", "operation", requestOperation(r), "alias", matched.Alias, "code_id", matched.ID)
 	return 303, "", id
 }
 func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.session(r)
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
-	if !ok || r.ParseForm() != nil || !hmac.Equal([]byte(r.PostForm.Get("csrf")), []byte(s.CSRF)) {
+	parseErr := r.ParseForm()
+	if parseErr == nil {
+		updateClientTimezone(r)
+	}
+	if !ok || parseErr != nil || !hmac.Equal([]byte(r.PostForm.Get("csrf")), []byte(s.CSRF)) {
+		setRequestResult(r, "denied", "invalid_logout")
 		webError(w, r, "InvalidLogout", 403)
 		return
 	}
@@ -330,8 +359,8 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	delete(a.sessions, c.Value)
 	a.mu.Unlock()
-	ip, _ := clientIP(r)
-	slog.Info("logout succeeded", "ip", ip.String(), "alias", s.Alias)
+	setRequestResult(r, "success", "logged_out")
+	clientLogger(r).Info("logout succeeded", "alias", s.Alias)
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/", 303)
 }
@@ -353,6 +382,7 @@ func relative(p, prefix string) (string, bool) {
 func (a *App) authorize(w http.ResponseWriter, r *http.Request) (Session, bool) {
 	s, ok := a.session(r)
 	if !ok {
+		setRequestResult(r, "denied", "authentication_required")
 		http.Redirect(w, r, "/", 303)
 	}
 	return s, ok
@@ -379,6 +409,7 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(list) > maxDirectoryEntries {
+		setRequestResult(r, "error", "directory_entry_limit")
 		webError(w, r, "DirectoryTooLarge", 503)
 		return
 	}
@@ -422,12 +453,14 @@ func (a *App) file(w http.ResponseWriter, r *http.Request) {
 	ip, _ := clientIP(r)
 	if !a.downloads.acquire(ip.String()) {
 		w.Header().Set("Retry-After", "5")
+		setRequestResult(r, "denied", "download_concurrency_limit")
 		webError(w, r, "Busy", 429)
 		return
 	}
 	defer a.downloads.release(ip.String())
 	ranges := r.Header.Values("Range")
 	if len(ranges) > 1 || (len(ranges) == 1 && (len(ranges[0]) > 128 || strings.Contains(ranges[0], ","))) {
+		setRequestResult(r, "denied", "unsupported_range")
 		webError(w, r, "InvalidRange", 400)
 		return
 	}
@@ -456,7 +489,7 @@ func (a *App) file(w http.ResponseWriter, r *http.Request) {
 	var sample [512]byte
 	n, err := f.ReadAt(sample[:], 0)
 	if err != nil && err != io.EOF {
-		slog.Error("read file preview header", "error", err)
+		clientLogger(r).Error("read file preview header", "error", err)
 		webError(w, r, "ReadFailed", http.StatusInternalServerError)
 		return
 	}

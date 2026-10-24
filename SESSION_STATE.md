@@ -188,11 +188,23 @@ make build
 
 待确认仅保存 Digest/Alias/CSRF/IP/Expires，独立随机 Cookie filegate_pending，Path=/access、HttpOnly、SameSite=Lax、TLS 时 Secure。Lax 保证外部顶级导航后的干净重定向，POST 另校验同源、Cookie、IPv4 和 CSRF；有效确认只允许一次尝试，随后清 Cookie。固定有效期 5 分钟，全局 1000、每 IP 10，cleanup 回收，重启/关闭清空；每浏览器最新链接替换旧准备，旧标签 CSRF 不可消费新链接。IPv4 改变、准备失效/确认失败要重开原链接；原访问码有效期不被延长。密码学摘要使用现有 HMAC 密钥，实际码的到期、封禁、撤销、映射变更、持久化和并发单次消费仍在共享锁阶段重查。手输和链接共用一个码的一次登录机会。
 
-/access 在最外层限流前设置 Referrer-Policy: origin，包括拒绝/过载响应，避免带码 URL 作为完整 Referer 继续传播；其余页面仍 same-origin，不使用曾导致 Origin:null 的 no-referrer。没有放宽 CSP 或添加脚本。初始 URL 仍可能被历史、平台或代理记录，HTTP 风险仍存在，不能声称干净重定向完全抹去凭据。
+/access 在最外层限流前设置 Referrer-Policy: origin，包括拒绝/过载响应，避免带码 URL 作为完整 Referer 继续传播；其余页面仍 same-origin，不使用曾导致 Origin:null 的 no-referrer。当时未添加脚本；后续客户端日志仅为生成页面增加哈希允许的固定时区脚本，确认流程仍不依赖 JavaScript。初始 URL 仍可能被历史、平台或代理记录，HTTP 风险仍存在，不能声称干净重定向完全抹去凭据。
 
 CLI 新增仅 code 可用的 --base-url http(s)源地址，在参数解析阶段拒绝用户信息、子路径、查询/片段、IPv6/未指定 IP、非法端口，避免发码后才报参数错；由本地 CLI 在受限 socket 返回码后组装 url 字段，不信任 Host/猜测地址、不增加服务端配置和第三方依赖。省略此项保持旧 JSON 输出。
 
 新增 access_link.go/access_link_test.go 与 cmd/filegate/access_url.go/access_url_test.go；扩展 TLS/HTTP2 内存连接测试用真实 CookieJar 完整跟随 GET 干净跳转和 POST 确认。回归测试已覆盖确认前不登录/消费、HEAD、Cookie属性、同源/CSRF/IP绑定、旧标签/重复/并发、码失效/撤销/重载/封禁/持久化失败、准备上限/回收/重启、原输入备用、日志脱敏和 CLI 参数。最终验证：Go 1.27.3 下 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、make vet、make build、git diff --check 和二进制帮助/版本检查均通过。TLS/HTTP2 CookieJar 用 net.Pipe 完整验证干净跳转和确认登录；仍跳过沙箱受限 Unix socket 测试，未运行真实浏览器或邮件/聊天扫描器，也未执行 govulncheck。链接登录代码、测试和文档随本次提交保存；未改实际配置或重启服务。
+
+### 客户端审计日志（2026-10-24）
+
+用户要求在登录成功/失败及其他事件记录 IP、浏览器、系统、时区等。原有代码基线为 78539d8，开始时工作区干净。新增 client_info.go、client_timezone.go、client_info_test.go，统一请求上下文和 request_id（服务端随机 16 位十六进制，X-Request-ID 返回，不信任传入同名头）。访问记录及登录/失败/来源拒绝/自动封禁/退出等事件带同一编号、socket IP、浏览器/数字版本、OS、设备/客户端种类、偏好语言、HTTP/TLS、时区/偏移及来源，另有 operation/outcome/reason。成功登录后的 HTTP 记录使用本次授权别名，403/429/503 及确认失败区分固定原因；无效/已用/过期码仍合并描述，不保存明文历史。
+
+客户端 UA/CH/语言只解析白名单标签与有界数字/语言标签，不输出原始头，浏览器信息可以被伪造或简化。IP 继续只取直接连接 IPv4，不信任转发头。时区不能由 HTTP 自动获得；曾异步询问脚本偏好，未收到回复，随后说明按推荐方案实现最小本地脚本。脚本只监听 POST 表单提交，附带 client_timezone 和 client_utc_offset，不读取访问码/URL/Cookie、不自动提交，登录和链接确认继续支持禁用 JavaScript。
+
+生成页面仅用 script-src sha256 允许静态常量脚本；render 中 template.JS 仅取该常量，绝不插入客户端数据，实际输出字节与 CSP 哈希有回归测试。文件响应仍使用 baseCSP（禁止脚本），HTML/SVG 等仍为源码。时区字段在读完表单后、状态锁外校验：名称最长 64，字符受限，用本机 IANA 数据库验证，Local/绝对路径/非法值拒绝记录；偏移为 -840..840 分钟（东正西负）。失败仅记 unknown/unverified_form，不影响正常码验证。服务端无 tzdata 时名称可能 unknown，合法偏移仍可记录。没有增加配置字段或嵌入庞大时区库。
+
+时区与偏移在有效会话中仅内存保留，后续访问来源标 session_reported；初次表单标 form_reported，无值 unavailable，未验证 unverified_form。未读取表单就拒绝的请求只能使用头信息及可用的旧会话值。时区不作为权限/IP封禁依据，不写入状态或新的 Cookie。日志时间戳仍为服务器时间。
+
+最终验证：Go 1.27.3 下 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、`make vet`、`make build`、二进制 `--version` 和 `git diff --check` 均通过。额外用 Node 在仓库 tmp 校验静态脚本语法和模拟 DOM，验证只在提交时填字段、重复提交不重复追加、GET 表单排除及 Intl 缺失降级。原有确认、隔离、并发、持久化和日志脱敏测试继续通过。仍跳过沙箱受限的 Unix socket 测试；未运行真实浏览器或 govulncheck。未改实际配置或重启服务；用户随后要求提交，本轮代码、测试和文档随客户端审计日志提交保存。
 
 ### 默认配置与本地现有配置不同
 
@@ -285,7 +297,7 @@ kill -HUP "$(pidof -s filegate)"
 - 预览与下载均检查会话、路径隔离和黑名单，支持 Range 和 HEAD。
 - `os.Root` 限制路径与符号链接逃逸；不是完整的 OS 沙箱，不防管理员放入危险挂载或敏感硬链接。
 - 列表隐藏符号链接与隐藏文件；授权目录内部的符号链接可能通过已知路径访问。
-- 全局 CSP 默认禁止脚本，X-Frame-Options/嵌入策略也限制 iframe；不要简单放开 HTML MIME 或脚本而忽略隔离。
+- 文件响应 CSP 禁止脚本；生成页面仅哈希允许固定时区采集脚本。X-Frame-Options/嵌入策略仍限制 iframe；不要简单放开 HTML MIME 或脚本而忽略隔离。
 - 文件已下载后无法撤回；封禁/退出不会立刻中断已开始传输。
 
 ### 日志（已实现并提交）
@@ -378,7 +390,7 @@ env TMPDIR="$PWD/tmp/test-tmp" \
 
 用户询问风险，没有授权实现。建议是独立外层预览页，提供返回、源码、下载；内部沙箱只渲染静态 HTML，限制脚本、表单、弹窗及顶部导航。
 
-当前 CSP 会阻止脚本，且 iframe 被响应头禁止；支持渲染不能只改 Content-Type，还需要设计预览专用策略和资源响应类型。CSS/JS 当前作为源码返回。完整脚本运行需要更强的来源隔离，HttpOnly 并不能阻止同源脚本携带 Cookie 请求文件。服务器目录授权仍有效，不要误称“同源脚本可以直接绕过目录权限”。
+当前文件响应 CSP 会阻止脚本，且 iframe 被响应头禁止；支持渲染不能只改 Content-Type，还需要设计预览专用策略和资源响应类型。CSS/JS 当前作为源码返回。完整脚本运行需要更强的来源隔离，HttpOnly 并不能阻止同源脚本携带 Cookie 请求文件。服务器目录授权仍有效，不要误称“同源脚本可以直接绕过目录权限”。
 
 ### 文件上传（最近一个技术议题）
 
