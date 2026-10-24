@@ -94,6 +94,7 @@ platform: linux/amd64
 | `internal/gate/reload.go` | 准备、验证、持久化撤销、原子切换配置 |
 | `internal/gate/preview.go` | 预览类型选择、头部嗅探、文本编码 |
 | `internal/gate/accesslog.go` | HTTP 状态/字节计数与访问日志，不记录查询和正文 |
+| `internal/gate/access_link.go` | 链接准备、干净确认页与 POST 确认 |
 | `internal/gate/language.go` | 编入程序的中英文文本、浏览器语言选择、独立语言偏好 Cookie |
 | `internal/logging/` | 双输出 handler、终端颜色检测、日志锁、轮转、定期清理及测试 |
 | `internal/gate/*_test.go` | 状态、隔离、来源、重载、JSONC、预览等测试 |
@@ -180,6 +181,18 @@ make build
 - make vulncheck 为可选开发入口，govulncheck 尚未安装，未联网安装或执行扫描；缓存和安装说明仍使用仓库 tmp。不新增发布 workflow。
 
 最终验证：Go 1.27.3 下原有与新增竞争检测套件（跳过 TestAdminSocketAndLock）、make vet、make build 和 git diff --check 通过；二进制 init、相对路径加载、帮助和版本烟雾检查通过。真实 TLS/HTTP2 和慢写/连接限额使用 net.Pipe，未绑定实际 TCP 端口，不需沙箱外网络权限；仍未执行本机 Unix socket、浏览器、恶意 HTTP2 帧、真实 IPv6 或 govulncheck。提交前 tmp/filegate 的验证版本为 v0.1-2-gd5d57d9-dirty、go1.27.3；提交后重新构建，实际版本请运行 --version 核对。此前的安全报告、本轮代码、测试和文档随本次安全加固提交保存；不要将历史报告里的旧“漏洞仍存在”断言当作新回归标准。
+
+### 一次性访问链接（2026-10-24）
+
+用户已授权“链接 + 确认按钮”的无 JavaScript 方案，保留原输入框；本轮开发开始前 HEAD 为 dad5c4b，工作区干净。实现 GET /access?code=完整码，创建受限的内存待确认记录后 303 到干净 /access；只有 POST /access 的确认按钮才调用与手动输入共享的 consumeDigest。GET 不验证码有效性、不消费、不建立会话、不增加登录失败次数；HEAD 完全不准备。确认页仅显示从码格式提取的别名和随机 CSRF，不包含原始码或摘要。已有登录只在成功确认后替换，并在页面明确提示。
+
+待确认仅保存 Digest/Alias/CSRF/IP/Expires，独立随机 Cookie filegate_pending，Path=/access、HttpOnly、SameSite=Lax、TLS 时 Secure。Lax 保证外部顶级导航后的干净重定向，POST 另校验同源、Cookie、IPv4 和 CSRF；有效确认只允许一次尝试，随后清 Cookie。固定有效期 5 分钟，全局 1000、每 IP 10，cleanup 回收，重启/关闭清空；每浏览器最新链接替换旧准备，旧标签 CSRF 不可消费新链接。IPv4 改变、准备失效/确认失败要重开原链接；原访问码有效期不被延长。密码学摘要使用现有 HMAC 密钥，实际码的到期、封禁、撤销、映射变更、持久化和并发单次消费仍在共享锁阶段重查。手输和链接共用一个码的一次登录机会。
+
+/access 在最外层限流前设置 Referrer-Policy: origin，包括拒绝/过载响应，避免带码 URL 作为完整 Referer 继续传播；其余页面仍 same-origin，不使用曾导致 Origin:null 的 no-referrer。没有放宽 CSP 或添加脚本。初始 URL 仍可能被历史、平台或代理记录，HTTP 风险仍存在，不能声称干净重定向完全抹去凭据。
+
+CLI 新增仅 code 可用的 --base-url http(s)源地址，在参数解析阶段拒绝用户信息、子路径、查询/片段、IPv6/未指定 IP、非法端口，避免发码后才报参数错；由本地 CLI 在受限 socket 返回码后组装 url 字段，不信任 Host/猜测地址、不增加服务端配置和第三方依赖。省略此项保持旧 JSON 输出。
+
+新增 access_link.go/access_link_test.go 与 cmd/filegate/access_url.go/access_url_test.go；扩展 TLS/HTTP2 内存连接测试用真实 CookieJar 完整跟随 GET 干净跳转和 POST 确认。回归测试已覆盖确认前不登录/消费、HEAD、Cookie属性、同源/CSRF/IP绑定、旧标签/重复/并发、码失效/撤销/重载/封禁/持久化失败、准备上限/回收/重启、原输入备用、日志脱敏和 CLI 参数。最终验证：Go 1.27.3 下 `go test -race ./... -skip '^TestAdminSocketAndLock$'`、make vet、make build、git diff --check 和二进制帮助/版本检查均通过。TLS/HTTP2 CookieJar 用 net.Pipe 完整验证干净跳转和确认登录；仍跳过沙箱受限 Unix socket 测试，未运行真实浏览器或邮件/聊天扫描器，也未执行 govulncheck。链接登录代码、测试和文档随本次提交保存；未改实际配置或重启服务。
 
 ### 默认配置与本地现有配置不同
 

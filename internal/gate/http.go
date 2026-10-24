@@ -21,7 +21,7 @@ import (
 
 const cookieName = "filegate_session"
 
-var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="{{.Language}}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Text.Title}}</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main><nav aria-label="{{.Text.Language}}"><a href="{{.LanguageURL}}?lang=zh-CN" lang="zh-CN" hreflang="zh-CN">简体中文</a> · <a href="{{.LanguageURL}}?lang=en" lang="en" hreflang="en">English</a> · <a href="{{.LanguageURL}}?lang=auto">{{.Text.Automatic}}</a></nav>{{if .Login}}<h1>{{.Text.Heading}}</h1><p class="muted">{{.Text.Instruction}}</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">{{.Text.Code}}</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="{{.Text.Example}}"></p><button>{{.Text.Enter}}</button></form>{{else}}<header><h1>{{.Text.Directory}} · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.Logout}}</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ {{.Text.Parent}}</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} {{$.Text.Bytes}}</span> · <a href="{{.URL}}?download=1">{{$.Text.Download}}</a>{{end}}</li>{{else}}<li class="muted">{{.Text.Empty}}</li>{{end}}</ul>{{end}}</main></html>`))
+var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="{{.Language}}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Text.Title}}</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main><nav aria-label="{{.Text.Language}}"><a href="{{.LanguageURL}}?lang=zh-CN" lang="zh-CN" hreflang="zh-CN">简体中文</a> · <a href="{{.LanguageURL}}?lang=en" lang="en" hreflang="en">English</a> · <a href="{{.LanguageURL}}?lang=auto">{{.Text.Automatic}}</a></nav>{{if .Confirm}}<h1>{{.Text.ConfirmHeading}}</h1><p>{{.Text.TargetDirectory}}: {{.Alias}}</p><p class="muted">{{.Text.ConfirmInstruction}}</p>{{if .CurrentAlias}}<p>{{.Text.CurrentDirectory}}: {{.CurrentAlias}}</p>{{end}}<p class="muted">{{.Text.ReplaceSession}}</p><form method="post" action="/access"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.ConfirmEnter}}</button></form><p><a href="/">{{.Text.ManualEntry}}</a></p>{{else if .Login}}<h1>{{.Text.Heading}}</h1><p class="muted">{{.Text.Instruction}}</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">{{.Text.Code}}</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="{{.Text.Example}}"></p><button>{{.Text.Enter}}</button></form>{{else}}<header><h1>{{.Text.Directory}} · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.Logout}}</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ {{.Text.Parent}}</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} {{$.Text.Bytes}}</span> · <a href="{{.URL}}?download=1">{{$.Text.Download}}</a>{{end}}</li>{{else}}<li class="muted">{{.Text.Empty}}</li>{{end}}</ul>{{end}}</main></html>`))
 
 type entry struct {
 	Name, URL string
@@ -32,6 +32,8 @@ type view struct {
 	Language, LanguageURL            string
 	Text                             map[string]string
 	Login                            bool
+	Confirm                          bool
+	CurrentAlias                     string
 	Error, Alias, Path, CSRF, Parent string
 	Entries                          []entry
 }
@@ -56,6 +58,9 @@ func render(w http.ResponseWriter, r *http.Request, status int, v view) {
 	v.LanguageURL = (&url.URL{Path: r.URL.Path}).String()
 	if v.Login {
 		v.LanguageURL = "/"
+	}
+	if v.Confirm {
+		v.LanguageURL = "/access"
 	}
 	if v.Error != "" {
 		v.Error = v.Text[v.Error]
@@ -89,6 +94,8 @@ func (a *App) Handler() http.Handler {
 		render(w, r, 200, view{Login: true})
 	})
 	mux.HandleFunc("POST /login", a.login)
+	mux.HandleFunc("GET /access", a.accessPage)
+	mux.HandleFunc("POST /access", a.confirmAccess)
 	mux.HandleFunc("POST /logout", a.logout)
 	mux.HandleFunc("GET /browse/", a.browse)
 	mux.HandleFunc("GET /file/", a.file)
@@ -98,9 +105,6 @@ func (a *App) Handler() http.Handler {
 	return a.accessLog(a.limitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		// no-referrer makes browsers send Origin: null on ordinary form POSTs,
-		// conflicting with the same-origin check used by login and logout.
-		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		ip, e := clientIP(r)
@@ -183,6 +187,10 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	parseErr := r.ParseForm()
 	status, message, id := a.consumeLogin(r, parseErr)
+	completeLogin(w, r, status, message, id)
+}
+
+func completeLogin(w http.ResponseWriter, r *http.Request, status int, message, id string) {
 	if status != http.StatusSeeOther {
 		if status == http.StatusTooManyRequests {
 			w.Header().Set("Retry-After", "60")
@@ -201,6 +209,17 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 // Only state validation and durable consumption are serialized. Never read or
 // write a client connection while holding this lock.
 func (a *App) consumeLogin(r *http.Request, parseErr error) (int, string, string) {
+	plain := strings.ToLower(strings.TrimSpace(r.PostForm.Get("code")))
+	digest := ""
+	if parseErr == nil && len(plain) >= 9 && len(plain) <= 24 {
+		a.mu.Lock()
+		digest = a.digest(plain)
+		a.mu.Unlock()
+	}
+	return a.consumeDigest(r, digest)
+}
+
+func (a *App) consumeDigest(r *http.Request, digest string) (int, string, string) {
 	ip, err := clientIP(r)
 	if err != nil {
 		return 400, "InvalidSource", ""
@@ -256,11 +275,9 @@ func (a *App) consumeLogin(r *http.Request, parseErr error) (int, string, string
 		a.attempts[key] = v
 		return 403, "RateBanned", ""
 	}
-	plain := strings.ToLower(strings.TrimSpace(r.PostForm.Get("code")))
-	digest := a.digest(plain)
 	var matched Code
 	valid := false
-	if parseErr == nil && len(plain) >= 9 && len(plain) <= 24 {
+	if digest != "" {
 		for _, c := range a.state.Codes {
 			if hmac.Equal([]byte(c.Digest), []byte(digest)) && time.Now().Before(c.Expires) {
 				if _, ok := a.roots[c.Alias]; ok {

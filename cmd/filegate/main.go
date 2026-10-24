@@ -149,6 +149,9 @@ func runArgsWithEUID(args []string, output io.Writer, euid int) (returnErr error
 		if e != nil {
 			return e
 		}
+		if opts.baseURL != nil {
+			out.URL = accessURL(opts.baseURL, out.Code)
+		}
 		enc := json.NewEncoder(output)
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)

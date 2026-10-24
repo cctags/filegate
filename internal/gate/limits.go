@@ -130,6 +130,13 @@ func (a *App) limitHTTP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writer := &idleWriter{ResponseWriter: w, controller: http.NewResponseController(w), timeout: writeIdleTimeout}
 		writer.deadline()
+		// Keep ordinary form POST origins intact. Link landings strip query/path
+		// from subsequent Referer headers, even on overload responses.
+		policy := "same-origin"
+		if r.URL.Path == "/access" {
+			policy = "origin"
+		}
+		writer.Header().Set("Referrer-Policy", policy)
 		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("X-Content-Type-Options", "nosniff")
 		select {

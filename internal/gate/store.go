@@ -43,6 +43,7 @@ type App struct {
 	mu          sync.Mutex
 	state       State
 	sessions    map[string]Session
+	pending     map[string]pendingLogin
 	attempts    map[string]attempts
 	roots       map[string]*os.Root
 	root        *os.Root
@@ -65,7 +66,7 @@ func New(c Config) (*App, error) {
 	if err := os.Chmod(c.StateDir, 0700); err != nil {
 		return nil, err
 	}
-	a := &App{cfg: c, sessions: map[string]Session{}, attempts: map[string]attempts{}, roots: map[string]*os.Root{}, requests: make(chan struct{}, maxRequests)}
+	a := &App{cfg: c, sessions: map[string]Session{}, pending: map[string]pendingLogin{}, attempts: map[string]attempts{}, roots: map[string]*os.Root{}, requests: make(chan struct{}, maxRequests)}
 	b, err := os.ReadFile(filepath.Join(c.StateDir, "state.json"))
 	if os.IsNotExist(err) {
 		a.state = State{Secret: token(), Codes: map[string]Code{}, Bans: map[string]time.Time{}}
@@ -124,6 +125,7 @@ func (a *App) Close() {
 		return
 	}
 	a.closed = true
+	clear(a.pending)
 	closeRoots(a.roots)
 	if a.root != nil {
 		a.root.Close()
@@ -196,6 +198,11 @@ func (a *App) blocked(ip netip.Addr) (bool, error) {
 	return time.Now().Before(a.state.Bans[ip.String()]), nil
 }
 func (a *App) cleanup(now time.Time) {
+	for id, pending := range a.pending {
+		if !now.Before(pending.Expires) {
+			delete(a.pending, id)
+		}
+	}
 	for k, v := range a.sessions {
 		if now.Sub(v.Seen) >= a.cfg.idle || now.Sub(v.Created) >= a.cfg.max {
 			delete(a.sessions, k)

@@ -13,6 +13,10 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -132,7 +136,11 @@ func TestHTTP2WithTLS(t *testing.T) {
 		return listener.Listener.(*pipeListener).dial(ctx)
 	}}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: transport, Timeout: 3 * time.Second, Jar: jar}
 	response, err := client.Get("https://filegate.test/")
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +149,36 @@ func TestHTTP2WithTLS(t *testing.T) {
 	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil || response.StatusCode != 200 || response.ProtoMajor != 2 {
 		t.Fatalf("HTTPS/HTTP2 failed: %s %d %v", response.Proto, response.StatusCode, err)
+	}
+	response.Body.Close()
+	code := createCode(t, a, "ab")
+	response, err = client.Get("https://filegate.test/access?code=" + code.Code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != 200 || response.Request.URL.Path != "/access" || response.Request.URL.RawQuery != "" || len(a.state.Codes) != 1 || len(a.sessions) != 0 {
+		t.Fatalf("link redirect prepared authentication incorrectly: %v", err)
+	}
+	csrf := regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(string(body))
+	if len(csrf) != 2 {
+		t.Fatal("missing confirmation token over HTTP2")
+	}
+	response, err = client.PostForm("https://filegate.test/access", url.Values{"csrf": {csrf[1]}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err = io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != 200 || response.ProtoMajor != 2 || response.Request.URL.Path != "/browse/" || !strings.Contains(string(body), "hello.txt") {
+		t.Fatalf("link login over TLS/HTTP2 failed: %v", err)
+	}
+	target, _ := url.Parse("https://filegate.test/access")
+	for _, cookie := range jar.Cookies(target) {
+		if cookie.Name == pendingCookieName {
+			t.Fatal("confirmation cookie remained after login")
+		}
 	}
 }
 

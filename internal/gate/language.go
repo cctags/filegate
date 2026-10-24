@@ -27,6 +27,12 @@ var translations = map[string]map[string]string{
 		"NotFound": "文件或页面不存在", "ReadFailed": "无法读取文件",
 		"Busy": "服务繁忙，请稍后重试", "InvalidRange": "仅支持单个且不超过 128 字节的文件范围请求",
 		"DirectoryTooLarge": "目录条目过多，请将文件分放到子目录",
+		"ConfirmHeading":    "确认访问", "TargetDirectory": "目标目录别名", "CurrentDirectory": "当前目录别名",
+		"ConfirmInstruction": "点击确认后验证并使用一次性访问码。仅打开页面不会登录。",
+		"ReplaceSession":     "确认将进入目标目录，并替换当前浏览器已有的登录。",
+		"ConfirmEnter":       "确认进入", "ManualEntry": "手动输入访问码",
+		"InvalidLink":    "链接格式无效，请重新获取管理员提供的完整链接。",
+		"PendingExpired": "确认页面已失效或验证失败。请重新打开原链接，或手动输入访问码；需要启用 Cookie。",
 	},
 	"en": {
 		"Title": "File access", "Heading": "Access files",
@@ -44,11 +50,17 @@ var translations = map[string]map[string]string{
 		"NotFound": "File or page not found", "ReadFailed": "Unable to read file",
 		"Busy": "Service busy; please try again later", "InvalidRange": "Only one file range with a header of at most 128 bytes is supported",
 		"DirectoryTooLarge": "Too many directory entries; organize files into subdirectories",
+		"ConfirmHeading":    "Confirm access", "TargetDirectory": "Target directory alias", "CurrentDirectory": "Current directory alias",
+		"ConfirmInstruction": "Confirm to validate and use the one-time access code. Opening this page does not log you in.",
+		"ReplaceSession":     "Confirmation opens the target directory and replaces any existing login in this browser.",
+		"ConfirmEnter":       "Confirm and enter", "ManualEntry": "Enter an access code manually",
+		"InvalidLink":    "Invalid link format; request the complete link from your administrator.",
+		"PendingExpired": "Confirmation expired or could not be verified. Reopen the original link or enter the code manually; cookies must be enabled.",
 	},
 }
 
 func languagePage(r *http.Request) bool {
-	return r.Method == http.MethodGet && (r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/browse/"))
+	return r.Method == http.MethodGet && (r.URL.Path == "/" || r.URL.Path == "/access" || strings.HasPrefix(r.URL.Path, "/browse/"))
 }
 
 func languageChoice(r *http.Request) string {

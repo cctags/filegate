@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,6 +28,11 @@ Options:
   --help                 Show this help
   --version              Print version and build information
   --config PATH          Default: config.json in the current working directory
+  --base-url URL         Only with code; default: omitted (no URL output).
+                         Public http(s) origin, e.g. http://192.0.2.10:17342;
+                         no credentials, path, query or fragment.
+                         Emits an additional url field. GET does not log in;
+                         the recipient must confirm on the page.
   --ttl DURATION         Only with code; default: the running server's
                          code_ttl setting (10m in a newly initialized config).
                          Override for this code only, e.g. 30s, 30m or 2h;
@@ -83,6 +89,9 @@ Fixed safety limits (not configuration fields):
   Directory entries      10000 raw entries; larger listings return 503
   Active codes per alias 10; revoke unused codes or wait for expiry
   Range requests         One range, at most 128 header bytes; else returns 400
+  Link confirmations     5m, 1000 globally / 10 per IPv4; memory only.
+                         Each browser retains only its newest prepared link.
+                         Access-code expiry is unchanged; cookies required.
 
 Server signals:
   SIGHUP                 Reload directory mappings and runtime limits;
@@ -108,6 +117,9 @@ Examples:
   filegate --config tmp/demo/config.json code ab
   filegate --config tmp/demo/config.json code ab --ttl 30m
   filegate --config tmp/demo/config.json code ch --ttl 30m
+  filegate --config tmp/demo/config.json code ab --ttl 30m --base-url http://192.0.2.10:17342
+  # Send the returned url to the user. Replace 192.0.2.10 with your public address.
+  # Opening it prepares a clean confirmation page; only the button consumes the code.
   # ch is the initialized alias for 文件夹.
   # Send the returned code (e.g. ab01234567) to the user, not the id.
   # The code allows one successful login; the session has separate timeouts.
@@ -141,8 +153,9 @@ Examples:
 `
 
 type options struct {
-	config string
-	action gate.Request
+	config  string
+	baseURL *url.URL
+	action  gate.Request
 }
 
 func parseOptions(args []string) (options, error) {
@@ -162,7 +175,7 @@ func parseOptions(args []string) (options, error) {
 		name, value, hasValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
 		takesValue := false
 		switch name {
-		case "config", "ttl":
+		case "config", "ttl", "base-url":
 			takesValue = true
 		case "help", "version":
 		default:
@@ -191,6 +204,12 @@ func parseOptions(args []string) (options, error) {
 			opts.config = value
 		case "ttl":
 			opts.action.TTL = value
+		case "base-url":
+			parsed, err := parseBaseURL(value)
+			if err != nil {
+				return options{}, err
+			}
+			opts.baseURL = parsed
 		default:
 			if opts.action.Action != "" {
 				return fail("choose either --help or --version")
@@ -233,6 +252,9 @@ func parseOptions(args []string) (options, error) {
 		if err != nil || duration <= 0 {
 			return opts, errors.New("--ttl must be a positive duration, e.g. 30m")
 		}
+	}
+	if seen["base-url"] && opts.action.Action != "code" {
+		return fail("--base-url requires the code action")
 	}
 	return opts, nil
 }

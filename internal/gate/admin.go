@@ -24,6 +24,7 @@ type Request struct {
 type Reply struct {
 	Error     string               `json:"error,omitempty"`
 	Code      string               `json:"code,omitempty"`
+	URL       string               `json:"url,omitempty"`
 	ID        string               `json:"id,omitempty"`
 	Expires   time.Time            `json:"expires,omitempty"`
 	Codes     []Code               `json:"codes,omitempty"`
