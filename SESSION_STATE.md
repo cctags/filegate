@@ -330,7 +330,7 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 
 验证：同一长根目录下 4 个管理 socket/锁/协议回归连续 3 次通过（tmp/ci-socket-after.log）；完整 make test 竞态检查、长根目录下全部 gate 竞态测试（tmp/ci-socket-tests.log）、make vet、gofmt 和 git diff --check 通过。未修改生产代码或工作流，不重复进程/浏览器/打包/fuzz；修复后的 GitHub 远端 job 尚未重跑确认。本地仍未配置 remote，不推断实际远端地址。沙箱外只读检查无 Go/Filegate 测试进程、gate 临时目录或 socket 残留，保留报告、缓存及可复用空长路径根；未操作 tmp/demo。
 
-对应长名称测试由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。用户随后要求以北京时间 2026-10-24 19:39:50 +0800 提交，本轮将作者和提交者日期均设为该值，提交信息为 `test: Shorten Unix socket fixture paths`；实际分析与验证日期仍为 2026-11-02。未推送或打标签。
+对应长名称测试由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。本轮将作者和提交者日期均设为该值，提交信息为 `test: Shorten Unix socket fixture paths`；实际分析与验证日期仍为 2026-11-02。未推送或打标签。
 
 ### GitHub CI 的 Chrome 首次 CDP 握手超时（2026-11-02）
 
@@ -342,7 +342,17 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 
 验证：Node 24.13.0、Chrome 155.0.8059.39 下正常浏览器及人为延迟 6 秒启动（tmp/ci-chrome-delay.py）两次完整回归均通过，包含启用/禁用脚本、登录、跨站链接确认、CSP、时区、退出、目录隔离和日志脱敏；10 个传输测试通过。make test-release（含 amd64 原生烟雾/arm64 交叉编译）、actionlint 1.7.12、JS 语法、相对文档链接和 git diff --check 通过。日志在 tmp/browser-ci-before.log、tmp/browser-ci-after.log、tmp/browser-ci-delayed.log、tmp/cdp-transport-tests.log、tmp/browser-ci-package-tests.log。未改 Go 生产代码，不重跑 Go 竞态/进程/fuzz；未在日志所示 Node 24.22.1 或实际 GitHub runner 上验收，远端仍需重跑，如仍失败应按新启动诊断继续定位。
 
-沙箱外确认无 Filegate/Go/Node/Chrome/crashpad 测试进程、profile、临时打包目录或 socket；保留报告、延迟包装器和缓存，未操作 tmp/demo 或实际服务。旧 CDP 代码由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。用户随后要求以北京时间 2026-10-24 19:41:08 +0800 提交，作者和提交者日期均设为该值，提交信息为 `test: Harden Chrome startup and CDP transport`；实际分析与验证日期仍为 2026-11-02。error.txt 不纳入提交，未推送、打标签或发布。
+沙箱外确认无 Filegate/Go/Node/Chrome/crashpad 测试进程、profile、临时打包目录或 socket；保留报告、延迟包装器和缓存，未操作 tmp/demo 或实际服务。旧 CDP 代码由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。作者和提交者日期均设为该值，提交信息为 `test: Harden Chrome startup and CDP transport`；实际分析与验证日期仍为 2026-11-02。error.txt 不纳入提交，未推送、打标签或发布。
+
+### v0.2.0 发布准备（2026-11-02）
+
+用户确认 GitHub CI 已通过，随后要求将 CHANGELOG 整理为日期 2026-10-24 的 v0.2.0。本轮将 v0.1 之后的 Unreleased 条目整体归入 v0.2.0，保留空 Unreleased，修正开头对未发布区间的说明，不改变程序或工作流。开始时 HEAD 为 c4313ee，跟踪文件干净，用户 error.txt 保留未跟踪状态。
+
+预检发现本地原有附注标签 v0.2.0（对象 8caca853e50dde401b1a6698101af0468ea87033）指向 c4313ee；已向用户说明既有标签边界，随后复查该本地标签已被移除，本轮不执行强制覆盖。用户要求继续；将发布准备提交及新建附注标签的时间均设为指定 +0800 时间，提交标题使用 `docs: Prepare release changelog`，不在标题中写版本号。本轮不推送或创建 GitHub Release。
+
+完整发布前验证已通过：make test/vet/build/test-release/test-integration/test-browser，包含 10 个 CDP 回归和脚本启用/禁用的真实 Chrome 场景，以及 FuzzStripJSONComments、FuzzAccessAlias、FuzzRelativePath、FuzzClientMetadata 各 30 秒。actionlint 和 git diff --check 通过，记录 tmp/v0.2.0-validation.log；程序、测试、工作流、发行包输入与 CHANGELOG 的已验证内容摘要记录在 tmp/v0.2.0-tested-tree.sha256。SESSION_STATE 仅补充本段交接，不属于发行包输入。
+
+为保留用户未跟踪日志而满足发布工作树清洁要求，提交后使用 tmp/r020 的隔离 detached worktree 核对源文件摘要和 clean 状态，再新建标签、执行真实版本的 validate-release.sh、重新构建核对 v0.2.0/modified:false；隔离工作树由本轮创建并在完成后清理。版本元数据和本地标签结果以实际 Git 检查及最终答复为准，不把文档自身提交号预写入本段。云端 Release/arm64 原生任务由后续推送触发，本轮无远端验收；Firefox、目标 systemd 部署及跨版本恢复亦未补测。用户 error.txt 不忽略、不移动、不提交，未操作 tmp/demo。
 
 ### 默认配置与本地现有配置不同
 
