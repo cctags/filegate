@@ -34,6 +34,8 @@ Production deployments use a dedicated non-login system user, normally `filegate
 
 Use idiomatic Go, `gofmt`, descriptive names, explicit errors, and `*_test.go` files with `Test...` functions. Test CLI validation, concurrent code consumption/reload, directory isolation, expiry, blacklisting, persistence failures, log rotation/retention and credential redaction. Validate arguments before side effects. No coverage threshold is established.
 
+Web UI and application errors use the embedded Chinese/English dictionaries in `internal/gate/language.go`. Keep translations complete, preserve template escaping, and test language negotiation and preference cookies without changing authentication or file contents. CLI and logs remain English.
+
 ## Security & State
 
 Preserve `os.Root` confinement, `crypto/rand` credentials, HMAC storage, and authorization on every file request. Persist code consumption before issuing sessions. Keep sessions in memory; serialize state writes in one server process. Keep configuration, blacklist, state, logs, and TLS private keys outside the content root. Never log credentials, bodies or query strings. Keep ANSI colors out of files. Logging changes require restart. Use HTTP only on trusted networks.

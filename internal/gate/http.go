@@ -20,7 +20,7 @@ import (
 
 const cookieName = "filegate_session"
 
-var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>文件访问</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main>{{if .Login}}<h1>访问文件</h1><p class="muted">请输入管理员提供的一次性访问码。</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">访问码</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="例如 ab12345678"></p><button>进入目录</button></form>{{else}}<header><h1>文件目录 · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>退出</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ 上级目录</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} 字节</span> · <a href="{{.URL}}?download=1">下载</a>{{end}}</li>{{else}}<li class="muted">目录为空</li>{{end}}</ul>{{end}}</main></html>`))
+var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="{{.Language}}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Text.Title}}</title><style>body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#213040;margin:0}main{max-width:850px;margin:8vh auto;padding:32px;background:white;border:1px solid #dbe2e8;border-radius:14px}input,button{font:inherit;padding:10px;border:1px solid #aebcca;border-radius:6px}button{cursor:pointer;background:#edf4ff}a{color:#175db5}li{padding:9px;overflow-wrap:anywhere}.muted{color:#596a7c}.error{color:#ad2531}header{display:flex;align-items:center;justify-content:space-between;gap:20px}form{margin:16px 0}@media(max-width:600px){main{margin:20px 10px;padding:20px}}</style><main><nav aria-label="{{.Text.Language}}"><a href="{{.LanguageURL}}?lang=zh-CN" lang="zh-CN" hreflang="zh-CN">简体中文</a> · <a href="{{.LanguageURL}}?lang=en" lang="en" hreflang="en">English</a> · <a href="{{.LanguageURL}}?lang=auto">{{.Text.Automatic}}</a></nav>{{if .Login}}<h1>{{.Text.Heading}}</h1><p class="muted">{{.Text.Instruction}}</p>{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}<form method="post" action="/login"><label for="code">{{.Text.Code}}</label><p><input id="code" name="code" required maxlength="24" autocomplete="off" autofocus placeholder="{{.Text.Example}}"></p><button>{{.Text.Enter}}</button></form>{{else}}<header><h1>{{.Text.Directory}} · {{.Alias}}</h1><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.Text.Logout}}</button></form></header><p class="muted">{{.Path}}</p><ul>{{if .Parent}}<li><a href="{{.Parent}}">↑ {{.Text.Parent}}</a></li>{{end}}{{range .Entries}}<li><a href="{{.URL}}">{{.Name}}{{if .Dir}} /{{end}}</a>{{if not .Dir}} <span class="muted">{{.Size}} {{$.Text.Bytes}}</span> · <a href="{{.URL}}?download=1">{{$.Text.Download}}</a>{{end}}</li>{{else}}<li class="muted">{{.Text.Empty}}</li>{{end}}</ul>{{end}}</main></html>`))
 
 type entry struct {
 	Name, URL string
@@ -28,6 +28,8 @@ type entry struct {
 	Size      int64
 }
 type view struct {
+	Language, LanguageURL            string
+	Text                             map[string]string
 	Login                            bool
 	Error, Alias, Path, CSRF, Parent string
 	Entries                          []entry
@@ -41,7 +43,17 @@ func clientIP(r *http.Request) (netip.Addr, error) {
 	}
 	return netipAddr(host)
 }
-func render(w http.ResponseWriter, status int, v view) {
+func render(w http.ResponseWriter, r *http.Request, status int, v view) {
+	v.Language = requestLanguage(r)
+	v.Text = translations[v.Language]
+	v.LanguageURL = (&url.URL{Path: r.URL.Path}).String()
+	if v.Login {
+		v.LanguageURL = "/"
+	}
+	if v.Error != "" {
+		v.Error = v.Text[v.Error]
+	}
+	languageHeaders(w, v.Language)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if e := page.Execute(w, v); e != nil {
@@ -67,12 +79,15 @@ func (a *App) Handler() http.Handler {
 			http.Redirect(w, r, "/browse/", http.StatusSeeOther)
 			return
 		}
-		render(w, 200, view{Login: true})
+		render(w, r, 200, view{Login: true})
 	})
 	mux.HandleFunc("POST /login", a.login)
 	mux.HandleFunc("POST /logout", a.logout)
 	mux.HandleFunc("GET /browse/", a.browse)
 	mux.HandleFunc("GET /file/", a.file)
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		webError(w, r, "NotFound", http.StatusNotFound)
+	})
 	return a.accessLog(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -83,7 +98,7 @@ func (a *App) Handler() http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		ip, e := clientIP(r)
 		if e != nil {
-			http.Error(w, "无效来源", 400)
+			webError(w, r, "InvalidSource", 400)
 			return
 		}
 		a.mu.Lock()
@@ -97,20 +112,21 @@ func (a *App) Handler() http.Handler {
 		a.mu.Unlock()
 		if e != nil {
 			slog.Error("blacklist unavailable", "error", e)
-			http.Error(w, "服务暂不可用", 503)
+			webError(w, r, "Unavailable", 503)
 			return
 		}
 		if blocked {
-			http.Error(w, "访问已被禁止", 403)
+			webError(w, r, "Blocked", 403)
 			return
 		}
 		if r.Method == "POST" && !sameOrigin(r) {
 			slog.Warn("request origin rejected", "ip", ip.String(), "host", r.Host,
 				"origin", logOrigin(r.Header.Get("Origin")), "fetch_site", logFetchSite(r.Header.Get("Sec-Fetch-Site")),
 				"https", r.TLS != nil)
-			http.Error(w, "无效请求来源", 403)
+			webError(w, r, "InvalidOrigin", 403)
 			return
 		}
+		saveLanguage(w, r)
 		mux.ServeHTTP(w, r)
 	}))
 }
@@ -167,7 +183,7 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	a.globalCount++
 	if a.globalCount > 1000 {
 		w.Header().Set("Retry-After", "60")
-		http.Error(w, "请求过多，请稍后重试", 429)
+		webError(w, r, "TooManyRequests", 429)
 		return
 	}
 	key := ip.String()
@@ -196,7 +212,7 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	if v.Count > a.cfg.AttemptsPerMinute {
 		ban()
 		a.attempts[key] = v
-		http.Error(w, "重试频率过高，IP 已临时封禁", 403)
+		webError(w, r, "RateBanned", 403)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
@@ -222,21 +238,21 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("login failed", "ip", key)
 		if v.Failures >= a.cfg.MaxFailures {
 			ban()
-			http.Error(w, "输入错误次数过多，IP 已临时封禁", 403)
+			webError(w, r, "FailureBanned", 403)
 			return
 		}
-		render(w, 401, view{Login: true, Error: "访问码无效、已使用或已过期"})
+		render(w, r, 401, view{Login: true, Error: "InvalidCode"})
 		return
 	}
 	if len(a.sessions) >= 10000 {
-		http.Error(w, "会话数量已达上限", 503)
+		webError(w, r, "SessionLimit", 503)
 		return
 	}
 	delete(a.state.Codes, matched.ID)
 	if e = a.save(); e != nil {
 		a.state.Codes[matched.ID] = matched
 		slog.Error("consume code", "error", e)
-		http.Error(w, "无法保存登录状态，请稍后重试", 503)
+		webError(w, r, "SaveFailed", 503)
 		return
 	}
 	// Preserve IP request counts even after a successful login.
@@ -255,7 +271,7 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.session(r)
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	if !ok || r.ParseForm() != nil || !hmac.Equal([]byte(r.PostForm.Get("csrf")), []byte(s.CSRF)) {
-		http.Error(w, "无效退出请求", 403)
+		webError(w, r, "InvalidLogout", 403)
 		return
 	}
 	c, _ := r.Cookie(cookieName)
@@ -296,23 +312,23 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 	}
 	name, ok := relative(r.URL.Path, "/browse/")
 	if !ok {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	f, e := a.openFile(r, name)
 	if e != nil {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	defer f.Close()
 	list, e := f.ReadDir(-1)
 	if e != nil {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	for _, part := range strings.Split(name, "/") {
 		if part != "." && strings.HasPrefix(part, ".") {
-			http.NotFound(w, r)
+			webError(w, r, "NotFound", http.StatusNotFound)
 			return
 		}
 	}
@@ -340,7 +356,7 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 		}
 		return v.Entries[i].Name < v.Entries[j].Name
 	})
-	render(w, 200, v)
+	render(w, r, 200, v)
 }
 func (a *App) file(w http.ResponseWriter, r *http.Request) {
 	_, ok := a.authorize(w, r)
@@ -349,31 +365,31 @@ func (a *App) file(w http.ResponseWriter, r *http.Request) {
 	}
 	name, ok := relative(r.URL.Path, "/file/")
 	if !ok {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	for _, part := range strings.Split(name, "/") {
 		if strings.HasPrefix(part, ".") {
-			http.NotFound(w, r)
+			webError(w, r, "NotFound", http.StatusNotFound)
 			return
 		}
 	}
 	f, e := a.openFile(r, name)
 	if e != nil {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	defer f.Close()
 	info, e := f.Stat()
 	if e != nil || !info.Mode().IsRegular() {
-		http.NotFound(w, r)
+		webError(w, r, "NotFound", http.StatusNotFound)
 		return
 	}
 	var sample [512]byte
 	n, err := f.ReadAt(sample[:], 0)
 	if err != nil && err != io.EOF {
 		slog.Error("read file preview header", "error", err)
-		http.Error(w, "无法读取文件", http.StatusInternalServerError)
+		webError(w, r, "ReadFailed", http.StatusInternalServerError)
 		return
 	}
 	contentType, inline := previewType(name, sample[:n])

@@ -76,7 +76,7 @@ platform: linux/amd64
 
 用户确认采用最小改动：撤回固定 `v0.1` 和手工拼接版本的方案，保留 Makefile 原有 `git describe --tags --always --dirty`；仅删除 `--version` 的独立 `commit:` 长哈希行和不再使用的读取逻辑，其他元数据保留。启动日志、版本默认值 `dev` 和 Makefile 均不改。
 
-2026-10-24 核对实际 HEAD 为 `78a9ea8`（`cli: Omit the full commit hash from version output`）；已按用户要求在此提交创建本地附注标签 `v0.1`，未推送远程。原逻辑在标签上只显示标签，在标签之后显示标签+提交数量+短哈希，没有标签时退回短哈希，有未提交改动时加 `-dirty`；不增加 `--long` 或其他 Git 参数。上述旧二进制快照里的 `commit:` 仅供历史参考。打标签不会自动更新已有二进制的内嵌版本。
+2026-10-24 曾在 `78a9ea8`（`cli: Omit the full commit hash from version output`）创建本地附注标签 `v0.1`；随后按用户明确要求，将标签移到最新提交 `122566e`（`cli: Refuse to serve with root privileges`），替换原指向。多语言开发开始前 HEAD 为 `122566e`、工作区干净，未配置 Git remote，也未推送标签。原逻辑在标签上只显示标签，在标签之后显示标签+提交数量+短哈希，没有标签时退回短哈希，有未提交改动时加 `-dirty`；不增加 `--long` 或其他 Git 参数。上述旧二进制快照里的 `commit:` 仅供历史参考。打标签不会自动更新已有二进制的内嵌版本。
 
 ## 4. 源码地图
 
@@ -94,6 +94,7 @@ platform: linux/amd64
 | `internal/gate/reload.go` | 准备、验证、持久化撤销、原子切换配置 |
 | `internal/gate/preview.go` | 预览类型选择、头部嗅探、文本编码 |
 | `internal/gate/accesslog.go` | HTTP 状态/字节计数与访问日志，不记录查询和正文 |
+| `internal/gate/language.go` | 编入程序的中英文文本、浏览器语言选择、独立语言偏好 Cookie |
 | `internal/logging/` | 双输出 handler、终端颜色检测、日志锁、轮转、定期清理及测试 |
 | `internal/gate/*_test.go` | 状态、隔离、来源、重载、JSONC、预览等测试 |
 | `README.md` | 中文使用说明和配置示例 |
@@ -138,6 +139,16 @@ make build
 文档先按用户要求提交为 `a8d1c6d`（`docs: Describe deployment with a dedicated service user`），随后实现启动检查：仅 `serve` 使用 `os.Geteuid()` 检查，有效 UID 为 0 时在参数校验后、配置读取和其他副作用前拒绝启动，提示切换用户；帮助、版本、初始化及本地管理不受限制。允许其他非 root 用户名，不自动降权或创建用户，不提供 root 豁免开关。`--help` 已同步说明。测试通过内部显式传入有效 UID 的入口覆盖 root 和非 root 分支，无须实际更改系统身份。
 
 验证：`go test -race ./... -skip '^TestAdminSocketAndLock$'` 通过（仍跳过沙箱限制的本地 socket 测试）；`make vet`、`make build`、二进制帮助/版本检查和 `git diff --check` 通过。首次 vet 与竞争测试并行运行时误扫描到仓库 tmp/build 中的临时 Go 源码而失败，等待测试完成后单独重跑 vet 通过；后续针对 `./...` 的检查应顺序执行，避免该临时目录扫描冲突。未实际切换 root 身份或监听服务，UID 分支由自动测试覆盖；未创建系统用户、安装服务、移动运行文件或修改部署配置。
+
+### Web 多语言（2026-10-24）
+
+用户已授权并实现简体中文和英文 Web 界面，包括登录、目录列表及应用错误提示。按 `Accept-Language` 的 q 权重选择支持语言，同权重按请求顺序；zh 各变体使用简体中文，en 各变体使用英文；没有匹配时保留默认简体中文。顶部提供简体中文、English、跟随浏览器三种链接，GET `/`、`/browse/...` 的 `lang=zh-CN|en|auto` 手动选择优先于 Cookie，再优先于浏览器；非法值忽略，POST 和文件 URL 不接受语言切换。
+
+语言 Cookie 为 `filegate_language`，Path=/、HttpOnly、SameSite=Strict、HTTPS 时 Secure，有效期 180 天；auto 删除偏好，登录退出不删除。没有新增服务端会话、配置字段或依赖；所有翻译编入二进制。HTML 和应用错误设置 Content-Language 与 Vary: Accept-Language, Cookie。文件原始数据不添加界面语言标记。CLI、日志英文，配置注释中文；Go 标准库协议级错误仍为英文。
+
+目录切换语言保留原目录，中文及含 ?/# 的路径通过 URL 转义；登录错误页切换回 `/`，不在 URL 携带访问码。封禁、来源检查、CSRF、访问码单次消费、目录隔离、下载参数保持原验证。未进行真实浏览器端到端测试，使用 httptest 验证页面及请求流程。发布 Actions 仅讨论过，尚未实现发布脚本或 workflow。
+
+验证：`go test -race ./... -skip '^TestAdminSocketAndLock$'`、`make vet`、`make build`、`git diff --check` 均通过；本地 Unix socket 测试仍按沙箱限制跳过，未运行真实浏览器。用例覆盖语言权重、偏好优先级/清除、Cookie 属性、中英文页面/错误、登录退出、目录隔离、封禁、特殊路径和原始文件下载。检查和测试顺序执行，避免仓库 tmp/build 临时源码扫描冲突。没有改动实际运行配置或重启服务；多语言代码、测试和文档随本次提交保存。
 
 ### 默认配置与本地现有配置不同
 
