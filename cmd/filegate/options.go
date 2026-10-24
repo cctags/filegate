@@ -15,7 +15,7 @@ const usage = `Usage: filegate [OPTIONS] ACTION [ARGUMENT]
 Choose exactly one action (no default action):
   init                   Create configuration and example directories;
                          never overwrite an existing configuration
-  serve                  Start the server in the foreground
+  serve                  Start the server in the foreground (non-root only)
   status                 Show codes, bans and session count
   code ALIAS             Create a one-time code for a configured alias
   revoke ID              Revoke an unused code using its returned id
@@ -36,6 +36,8 @@ ALIAS, ID and IP_OR_CIDR are required for their respective actions and have
 no default. ALIAS is a configured key of 1-16 lowercase English letters,
 not a directory path. Directory names may contain Chinese characters.
 Management actions require a running server and its OS user (or root).
+serve refuses effective UID 0 before reading configuration; use a dedicated
+non-root service user (normally filegate). Other actions may run as root.
 --help and --version need neither a configuration file nor a running server.
 Configuration accepts JSONC // and /* */ comments, or plain JSON, regardless
 of extension. The default filename remains config.json; --config config.jsonc

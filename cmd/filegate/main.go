@@ -79,10 +79,17 @@ func run() error {
 	return runArgs(os.Args[1:], os.Stdout)
 }
 
-func runArgs(args []string, output io.Writer) (returnErr error) {
+func runArgs(args []string, output io.Writer) error {
+	return runArgsWithEUID(args, output, os.Geteuid())
+}
+
+func runArgsWithEUID(args []string, output io.Writer, euid int) (returnErr error) {
 	opts, err := parseOptions(args)
 	if err != nil {
 		return err
+	}
+	if opts.action.Action == "serve" && euid == 0 {
+		return errors.New("refusing to serve as root; run as a dedicated non-root user (for example, sudo -u filegate filegate --config /srv/filegate/config.json serve)")
 	}
 	if opts.action.Action == "help" {
 		_, err := fmt.Fprint(output, usage)
