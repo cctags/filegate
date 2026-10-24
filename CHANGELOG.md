@@ -13,6 +13,7 @@
 - `unblock` 返回永久条目和有效临时封禁的实际删除数量；无匹配时明确说明，单个 IP 仍被永久黑名单覆盖时列出相关条目。
 - 按命令和主题查看帮助：`code --help`、`serve --help`、`--help=config`、`--help=examples`、`--help=limits` 和 `--help=all`。
 - 项目采用 MIT License，完整条款见 [LICENSE](LICENSE)。
+- 新增 [安全政策](SECURITY.md)，说明维护范围、漏洞报告所需信息及部署边界；专用私密报告渠道仍待维护者配置。
 
 ### 调整
 

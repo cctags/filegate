@@ -274,6 +274,12 @@ Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp �
 
 补充从 v0.1 升级的配置/权限/重启注意事项，明确 Unreleased 不是新标签或 GitHub Release。README 添加入口，项目评估标记已完成，AGENTS 要求后续用户可见变化更新 Unreleased，并按真实标签维护版本边界。仅文档变更，核对历史、标签及链接并运行 git diff --check，不重复代码测试；未创建标签或改动运行数据。用户随后要求提交，本轮将这些文档改动一并提交，提交信息使用 `docs: Add changelog with release and upgrade notes`。
 
+### 安全政策（2026-10-24）
+
+用户要求添加 security.md，采用常见大写文件名 SECURITY.md，与现有 README/CHANGELOG 一致。基线为 e66d489，开始时工作区干净。文档说明当前开发版本优先修复、旧标签无独立回移计划、Go 安全补丁需重新构建部署、脱敏报告内容和可信网络/本地权限/状态恢复边界。没有可核实的远端或联系邮箱，因此明确专用私密渠道尚待维护者配置：已有私密入口则优先使用，否则私下询问；公开 Issue 仅询问渠道，不附漏洞细节。未虚构联系方式、承诺响应期限或声称启用了远端功能。
+
+README 和 CHANGELOG 增加安全政策入口，项目评估区分文档已完成与报告渠道仍待配置。仅文档变更，核对现有实现说明、相对链接和 git diff --check，不运行代码测试；未修改运行数据、打标签或发布。用户随后要求提交，本轮将相关文档一并提交，提交信息使用 `docs: Add security policy and reporting guidance`。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

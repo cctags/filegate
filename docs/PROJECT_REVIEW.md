@@ -33,9 +33,9 @@ Filegate 已形成清楚的产品边界：Linux/IPv4、Go 标准库、单二进�
 
 ### 1. 许可证与安全维护政策
 
-评估时本地没有 `LICENSE` 和 `SECURITY.md`。后续用户已明确选择 MIT，现已添加标准 LICENSE，使用项目通用署名 `Copyright (c) 2026 Filegate contributors`，未填写个人姓名或邮箱。许可证这一项已完成，安全维护政策仍待补充。[GitHub 的许可证说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository)区分了公开可见与许可复用。
+评估时本地没有 `LICENSE` 和 `SECURITY.md`。后续用户已明确选择 MIT，现已添加标准 LICENSE，使用项目通用署名 `Copyright (c) 2026 Filegate contributors`，未填写个人姓名或邮箱。许可证和安全政策文档现已补齐。[GitHub 的许可证说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository)区分了公开可见与许可复用。
 
-`SECURITY_REVIEW.md` 是历史审查记录，不能替代面向使用者的维护政策。新 `SECURITY.md` 应简短说明支持哪些版本、如何私下报告问题、应提供哪些脱敏信息，以及当前网络/文件系统边界。联系渠道必须在仓库和维护者身份确定后填写；不要捏造邮箱或承诺无法保证的修复时限。可参考 [Dufs 的安全政策](https://github.com/sigoden/dufs/blob/main/SECURITY.md)。
+已添加 [SECURITY.md](../SECURITY.md)，说明维护范围、优先私下报告、脱敏信息和网络/文件系统边界；`SECURITY_REVIEW.md` 继续保留历史审查证据。专用私密联系渠道仍需维护者在正式公开发布前配置，当前未捏造邮箱或承诺响应时限，也未启用远端报告功能。可参考 [Dufs 的安全政策](https://github.com/sigoden/dufs/blob/main/SECURITY.md)。
 
 ### 2. 最小 CI 与发布流程
 
@@ -128,9 +128,9 @@ README 已提醒恢复旧状态会复活旧码，但缺少完整操作流程。�
 
 ## 推荐实施顺序
 
-1. 许可证和 CHANGELOG 已完成；确定公开仓库地址，整理当前说明，补 SECURITY/简短贡献入口。
+1. 许可证、CHANGELOG 和 SECURITY 文档已完成；确定公开仓库地址和私密漏洞报告渠道，整理当前说明，补简短贡献入口。
 2. 完整 systemd 示例与升级/恢复说明；实现只读 check。
 3. 建最小 CI 和按版本触发的完整发布验证，交付 Linux amd64/arm64 压缩包及校验和。
 4. 根据部署反馈补本地诊断、状态格式演进、文件列表体验和浏览器/性能基线。
 
-用户已选择 MIT 并要求添加 CHANGELOG，正式仓库地址和其余建议仍待明确或实施。未运行新的功能/安全测试、未安装工具、未部署、未打标签或推送。这些变更仅涉及仓库文件和文档，不改变程序行为。
+用户已选择 MIT，并要求添加 CHANGELOG 和 SECURITY 文档；正式仓库地址、私密漏洞报告渠道和其余建议仍待明确或实施。未运行新的功能/安全测试、未安装工具、未部署、未打标签或推送。这些变更仅涉及仓库文件和文档，不改变程序行为。
