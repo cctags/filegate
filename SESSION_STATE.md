@@ -268,6 +268,12 @@ Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp �
 
 用户明确选择 MIT 并要求修改和提交。新增标准 LICENSE，使用项目通用版权署名 `Copyright (c) 2026 Filegate contributors`，未填个人姓名或邮箱；README 添加许可入口及简短说明，项目对比评估将许可证标记为完成，其余建议保持待实施。此前尚未提交的评估文档和入口随本次一并保存。仅许可证与文档变更，核对 MIT 正文、链接和 git diff --check，不运行代码测试，也不改动运行资源或发布标签。
 
+### 变更记录（2026-10-24）
+
+用户要求添加 CHANGELOG.md。本轮从完整 Git 历史及实际标签划分，基线 HEAD 为 d0425c0、工作区干净；v0.1 对应 2026-10-24 的 122566e。新增中文用户向变更记录：Unreleased 记录多语言、17342 默认端口、IPv4-only/Go 1.27.3、访问链接、审计与解封结果、分层帮助、安全修复/资源限制、MIT 和测试入口；v0.1 记录标签已包含的基础功能、JSONC、预览、日志、SIGHUP、普通子命令、版本和非 root 运行，不能把后续功能误算入旧标签。
+
+补充从 v0.1 升级的配置/权限/重启注意事项，明确 Unreleased 不是新标签或 GitHub Release。README 添加入口，项目评估标记已完成，AGENTS 要求后续用户可见变化更新 Unreleased，并按真实标签维护版本边界。仅文档变更，核对历史、标签及链接并运行 git diff --check，不重复代码测试；未创建标签或改动运行数据。用户随后要求提交，本轮将这些文档改动一并提交，提交信息使用 `docs: Add changelog with release and upgrade notes`。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
