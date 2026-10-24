@@ -244,8 +244,10 @@ func (f *processFixture) login(t *testing.T, code string) *http.Cookie {
 
 func TestProcessLifecycle(t *testing.T) {
 	f := processFixtureForTest(t)
+	f.command(t, "check")
 	p := f.start(t)
 	issued := f.admin(t, "code", "ch", "--base-url", f.url())
+	f.command(t, "check")
 	if issued.URL == "" {
 		t.Fatal("CLI did not emit access URL")
 	}
@@ -403,6 +405,11 @@ func TestProcessTLSAndStartupFailures(t *testing.T) {
 			f.save(t)
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			defer cancel()
+			check := exec.CommandContext(ctx, f.binary, "--config", f.config, "check")
+			checkErr := check.Run()
+			if (checkErr == nil) != (failure == "occupied port") || ctx.Err() != nil {
+				t.Fatalf("unexpected check result for %s: %v", failure, checkErr)
+			}
 			cmd := exec.CommandContext(ctx, f.binary, "--config", f.config, "serve")
 			if err := cmd.Run(); err == nil || ctx.Err() != nil {
 				t.Fatal("bad startup succeeded or hung")
@@ -418,6 +425,7 @@ func TestProcessTLSAndStartupFailures(t *testing.T) {
 	f.cfg.Listen = freeAddress(t)
 	f.cfg.TLSCert, f.cfg.TLSKey = cert, key
 	f.save(t)
+	f.command(t, "check")
 	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}, ForceAttemptHTTP2: true}
 	defer transport.CloseIdleConnections()
 	f.client.Transport = transport

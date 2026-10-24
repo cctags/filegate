@@ -11,7 +11,7 @@ import (
 )
 
 func TestActionsAndLongOptions(t *testing.T) {
-	for _, action := range []string{"init", "serve", "status", "version", "help", "code", "revoke", "logout", "block", "unblock"} {
+	for _, action := range []string{"init", "check", "serve", "status", "version", "help", "code", "revoke", "logout", "block", "unblock"} {
 		t.Run(action, func(t *testing.T) {
 			args := []string{action}
 			if action == "help" || action == "version" {

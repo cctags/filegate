@@ -139,6 +139,13 @@ func runArgsWithEUID(args []string, output io.Writer, euid int) (returnErr error
 		fmt.Fprintln(output, "Created configuration and directories. Start with: filegate --config", opts.config, "serve")
 		return nil
 	}
+	if opts.action.Action == "check" {
+		if err := gate.Check(opts.config); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(output, "Configuration check passed (read-only; runtime writes and port availability are not tested).")
+		return err
+	}
 	c, e := gate.Load(opts.config)
 	if e != nil {
 		return e

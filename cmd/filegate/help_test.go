@@ -11,7 +11,7 @@ import (
 )
 
 func TestHelpTopicsAndCommands(t *testing.T) {
-	for _, topic := range []string{"", "config", "examples", "limits", "all", "init", "serve", "status", "code", "revoke", "logout", "block", "unblock"} {
+	for _, topic := range []string{"", "config", "examples", "limits", "all", "init", "check", "serve", "status", "code", "revoke", "logout", "block", "unblock"} {
 		t.Run(topic, func(t *testing.T) {
 			base := t.TempDir()
 			arg := "--help"
@@ -78,6 +78,7 @@ func TestHelpOverviewAndReference(t *testing.T) {
 		"config":   {"0.0.0.0:17342", "ch -> 文件夹", "logging.retention_days", "initialization defaults", "JSONC", "--config config.jsonc"},
 		"code":     {"--ttl DURATION", "server's code_ttl (initially 10m)", "--base-url URL", "omitted", "not a directory name", "confirmation"},
 		"serve":    {"SIGHUP", "SIGINT, SIGTERM", "restart", "non-root"},
+		"check":    {"Read-only", "nothing is created", "service user", "point-in-time", "TLS"},
 		"unblock":  {"No match is not an error", "still_blocked", "Failure counters"},
 		"examples": {"mkdir -p tmp/demo/content/documents", "\"docs\": \"documents\"", "kill -HUP", "configuration reloaded", "code docs --ttl 30m"},
 		"limits":   {"128", "32 globally, 4 per client IP", "10000", "Link confirmations"},

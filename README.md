@@ -14,6 +14,7 @@
 make build
 ./tmp/filegate --config tmp/demo/config.json init
 # 把需要分享的文件放进 tmp/demo/content/ab/、cd/ 或 文件夹/
+./tmp/filegate --config tmp/demo/config.json check
 ./tmp/filegate --config tmp/demo/config.json serve
 ```
 
@@ -139,7 +140,7 @@ UMask=0077
 NoNewPrivileges=true
 ```
 
-`serve` 在参数校验后检查有效用户 ID；若为 `0`，在读取配置、创建文件或监听端口前报错退出，提示切换服务用户。`--help`、`--version`、`init` 和本地管理命令仍允许 root 执行，但建议以服务用户初始化，避免生成 root 拥有的运行文件。普通用户不强制命名为 `filegate`，不提供 root 豁免选项；程序不会自动创建用户或降权。
+`serve` 在参数校验后检查有效用户 ID；若为 `0`，在读取配置、创建文件或监听端口前报错退出，提示切换服务用户。`--help`、`--version`、`init`、`check` 和本地管理命令仍允许 root 执行，但建议以服务用户初始化和检查，避免生成 root 拥有的运行文件或遗漏权限问题。普通用户不强制命名为 `filegate`，不提供 root 豁免选项；程序不会自动创建用户或降权。
 
 ## 命令行选项
 
@@ -148,6 +149,7 @@ NoNewPrivileges=true
 ```bash
 ./tmp/filegate code --help        # 发码参数、默认值与示例
 ./tmp/filegate serve --help       # 服务启动、信号与重载规则
+./tmp/filegate check --help       # 启动或重载前的只读检查
 ./tmp/filegate --help=config      # 配置默认值和路径规则
 ./tmp/filegate --help=examples    # 完整教程，包括新增目录、重载和发码
 ./tmp/filegate --help=limits      # 固定安全限制
@@ -161,6 +163,20 @@ NoNewPrivileges=true
 每次选择一个操作，例如 `serve`、`code ab` 或 `status`；配置使用 `--config PATH`，访问码有效期使用 `--ttl 30m`，生成完整链接可使用 `--base-url http://服务器地址:17342`（仅用于 `code`）。选项可放在子命令及其参数之前、之间或之后，带值选项也支持 `--config=PATH` 和 `--ttl=30m`。重复选项、多个操作、缺失值和超出子命令要求的位置参数均会报错。
 
 操作使用普通子命令，例如 `serve`、`code ch`、`block IP`；选项仍使用 `--config`、`--ttl`，帮助和版本保留 `--help`、`--version`。不再接受旧的 `--serve`、`--code` 等操作写法，也不接受 `-config`、`-version` 或位置形式的有效期 `code ab 30m`，已有脚本需相应更新。
+
+## 配置与部署检查
+
+在启动或重载前，以服务用户执行：
+
+```bash
+sudo -u filegate /usr/local/bin/filegate --config /srv/filegate/config.json check
+# 开发环境使用当前用户：
+./tmp/filegate --config tmp/demo/config.json check
+```
+
+`check` 校验 JSONC、字段和运行参数、实际目录映射（包括中文目录、重复/嵌套及符号链接）、敏感路径隔离、黑名单、已有状态文件，以及配置的 TLS 证书/私钥能否解析并配对。成功输出 `Configuration check passed` 并返回 0，失败返回非零。缺少配置、内容目录、已映射目录或黑名单会失败；首次启动前缺少状态/日志目录及 `state.json` 可以通过，但不会创建它们。已有状态按启动时相同的结构和密钥规则校验，不会清理过期条目、发码或消费访问码。
+
+检查不启动日志、不创建锁或 socket、不修改文件内容、权限或修改时间，可在停服或运行中执行，也允许 root 执行。读取可能更新文件系统访问时间。请使用服务用户检查读取权限；root 的检查结果不能代表服务用户权限。检查不尝试写入、不测试端口或锁是否可用，也不验证 TLS 证书的信任链、有效期和主机名。结果仅代表检查时刻，不保证稍后启动或重载成功；它不比较正在运行的配置，修改需要重启的字段仍不能通过 SIGHUP 生效。
 
 ## 本机管理
 
@@ -257,6 +273,7 @@ NoNewPrivileges=true
 修改配置后，对正在运行的服务发送 `SIGHUP`：
 
 ```bash
+./tmp/filegate --config tmp/demo/config.json check
 kill -HUP "$(pidof -s filegate)"
 # -1 与 -HUP 等价
 ```

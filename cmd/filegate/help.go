@@ -22,6 +22,19 @@ Examples:
   filegate --config tmp/demo/config.json init
   filegate --help=config
 `},
+	{"check", "", "Validate a deployment without starting it", `Read-only checks: JSONC and settings, actual directory mappings, private paths,
+blacklist entries, existing state and the configured TLS certificate/key pair.
+Missing state/log directories and initial state are allowed; nothing is created,
+rewritten or chmodded. Does not acquire locks, bind ports or contact the server.
+
+Run as the service user for meaningful read-permission checks. Success is a
+point-in-time check, not proof of write access, port availability, certificate
+trust/hostname/validity or successful startup/reload. Works while serve is running.
+
+Examples:
+  filegate --config tmp/demo/config.json check
+  sudo -u filegate filegate --config /srv/filegate/config.json check
+`},
 	{"serve", "", "Run the server in the foreground", `Run as a dedicated non-root user, normally filegate. Effective UID 0 is
 rejected before configuration is read. Use HTTP only on a trusted network.
 The listen address comes from config.json (initial default: 0.0.0.0:17342).
@@ -121,7 +134,7 @@ func commandHelpText(command commandHelp) string {
 		invocation += " " + command.argument
 	}
 	text := "Usage: " + invocation + "\n\n" + command.summary + "\n\n" + helpGlobal + "\n"
-	if command.name != "init" && command.name != "serve" {
+	if command.name != "init" && command.name != "serve" && command.name != "check" {
 		text += "Requires the running server and its OS user (or root).\n\n"
 	}
 	text += command.details
@@ -329,6 +342,7 @@ const usage = `Usage: filegate [OPTIONS] ACTION [ARGUMENT]
 
 Actions:
   init             Create configuration and example directories
+  check            Validate configuration and files without starting
   serve            Run the server in the foreground (non-root)
   status           Show active code IDs, bans and session count
   code ALIAS       Issue a one-time access code
@@ -344,9 +358,9 @@ Global options:
 
 Quick start:
   filegate init
+  filegate check
   filegate serve
   filegate code ab  # Run in another terminal; send the returned code
-
 More help:
   filegate code --help      Command options, defaults and examples
   filegate --help=config    Configuration defaults and path rules
@@ -412,6 +426,7 @@ const helpExamples = `Examples:
   # under tmp/demo/. config.json contains // explanations above key fields.
 
   # 2. Start the server. Keep this terminal open; use another for management.
+  filegate --config tmp/demo/config.json check
   filegate --config tmp/demo/config.json serve
   # Defaults: browse http://SERVER_IP:17342; use the listen port from your config.
   # Colored levels appear on a terminal; plain logs go to tmp/demo/logs/filegate.log.
@@ -437,6 +452,7 @@ const helpExamples = `Examples:
   # Merely creating the folder does not make it accessible.
 
   # 5. Reload the server after saving the configuration.
+  filegate --config tmp/demo/config.json check
   # For a single instance, first verify this is the serve process:
   ps -C filegate -o pid,args
   kill -HUP "$(pidof -s filegate)"

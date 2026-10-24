@@ -80,9 +80,8 @@ func New(c Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	secret, e := hex.DecodeString(a.state.Secret)
-	if e != nil || len(secret) != 32 || a.state.Codes == nil || a.state.Bans == nil {
-		return nil, errors.New("invalid state file")
+	if err := validateState(a.state); err != nil {
+		return nil, err
 	}
 	// Sensitive files must never be reachable through the content root.
 	contentPath, err := filepath.EvalSymlinks(c.Root)
@@ -121,6 +120,14 @@ func New(c Config) (*App, error) {
 	}
 	return a, nil
 }
+func validateState(state State) error {
+	secret, err := hex.DecodeString(state.Secret)
+	if err != nil || len(secret) != 32 || state.Codes == nil || state.Bans == nil {
+		return errors.New("invalid state file")
+	}
+	return nil
+}
+
 func (a *App) Close() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -155,6 +162,10 @@ func (a *App) blacklist() ([]netip.Prefix, error) {
 	if e != nil {
 		return nil, e
 	}
+	return parseBlacklist(b)
+}
+
+func parseBlacklist(b []byte) ([]netip.Prefix, error) {
 	var out []netip.Prefix
 	for n, line := range strings.Split(string(b), "\n") {
 		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])

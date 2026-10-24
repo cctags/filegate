@@ -118,7 +118,7 @@ func parseOptions(args []string) (options, error) {
 		opts.action.Action = positional[0]
 		required := 0
 		switch opts.action.Action {
-		case "init", "serve", "status":
+		case "init", "check", "serve", "status":
 		case "code", "revoke", "logout", "block", "unblock":
 			required = 1
 		default:

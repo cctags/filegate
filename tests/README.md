@@ -28,6 +28,11 @@ The process suite checks CLI administration, Chinese files, valid and rejected
 SIGHUP reloads, SIGTERM/SIGINT, persistent consumption and unblocking, restart,
 second instances, occupied ports, unavailable logging, invalid certificates,
 and TLS/HTTP2 using certificate files and a test trust store.
+It also runs `check` before startup, while the server holds its locks and after
+TLS configuration, and checks exit status for invalid deployment files. The
+regular CLI suite snapshots file contents, modes and modification times on
+successful and failed checks, including missing initial state/log directories,
+Chinese mappings, symlinks, FIFOs, unreadable files and invalid state/TLS pairs.
 
 ## Choosing validation scope
 

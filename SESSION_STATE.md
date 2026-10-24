@@ -280,6 +280,16 @@ Makefile 的 test/vet 范围限定 ./cmd/... ./internal/...，避免误扫 tmp �
 
 README 和 CHANGELOG 增加安全政策入口，项目评估区分文档已完成与报告渠道仍待配置。仅文档变更，核对现有实现说明、相对链接和 git diff --check，不运行代码测试；未修改运行数据、打标签或发布。用户随后要求提交，本轮将相关文档一并提交，提交信息使用 `docs: Add security policy and reporting guidance`。
 
+### 只读 check 命令（2026-10-24）
+
+用户要求添加 check 命令；基线 HEAD 为 d35ffa3，开始时工作区干净。新增 `filegate --config PATH check`，默认 config.json，成功返回 0 并输出检查通过，错误返回非零；支持 check --help/--help=check，无需运行服务，允许 root，但建议以服务用户检查读取权限。
+
+internal/gate/check.go 调用 Load、openDirectories 及与启动共用的状态有效性/黑名单解析逻辑，不调用 New、Lock、logging.Start 或管理 socket。检查 JSONC、参数、真实目录映射、敏感路径隔离（包括缺失目录的真实祖先及悬空链接）、黑名单、已有状态、日志文件类型和 TLS 证书/私钥配对。缺少初始 state/log 目录和 state.json 可通过，但缺少内容/映射目录或黑名单失败；不创建、改写、chmod、清理过期数据或消费访问码。文件读取可能更新访问时间，不保证写权限、端口/锁可用、证书信任/有效期/主机名或后续启动/重载成功，也不比较当前运行配置。特殊文件以非阻塞方式打开后校验类型，避免 FIFO 挂起；状态解析错误不回显可能包含敏感值的字段。未改变启动时状态/黑名单验证规则。
+
+补充 CLI 快照回归，覆盖新部署 JSONC、已有访问码、缺失运行目录、中文映射、重叠/重复映射、私有路径、悬空链接、FIFO、状态损坏/脱敏、权限及有效/无效/不匹配 TLS；比较成功和失败前后的名称、内容摘要、模式及修改时间。实际进程测试新增停服检查、服务持锁时检查且原码仍可登录、TLS 检查、无效文件失败退出及占用端口仍可通过。
+
+验证：初次 make test 因沙箱禁止 Unix socket 失败，获准在沙箱外重跑后完整竞态测试通过；随后最后的错误脱敏调整已重跑相关 CLI 竞态回归及 make test-integration，全部通过。make vet、make build、check --help 和 git diff --check 通过。没有更改 Web/解析算法，不运行浏览器或额外 fuzz；不是发布验证。测试使用独立 tmp 资源，子进程由测试等待退出并清理，未启动浏览器，检查未留下测试 socket；保留构建缓存和 tmp/check-test.log、tmp/check-integration.log，不操作实际 tmp/demo 数据。README、AGENTS、CHANGELOG、测试指南和项目评估已同步。用户随后要求提交，本轮将相关实现、测试和文档一并提交，提交信息使用 `cli: Add read-only deployment checks`；未打标签或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
