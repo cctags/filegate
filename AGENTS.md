@@ -28,6 +28,8 @@ Use bare action commands with double-dash options. Keep `--help` and `--version`
 
 Choose one action per invocation. Administration uses a restricted Unix socket, never Web management.
 
+Production deployments use a dedicated non-login system user, normally `filegate`; development may use the developer account. Keep binaries and configuration administrator-owned, content read-only to the service, and state/logs writable. Blacklist replacement requires write access to its parent directory; prefer `state/blacklist.txt` in deployments. Root rejection for `serve` is proposed, not implemented; do not describe it as enforced.
+
 ## Coding Style & Testing
 
 Use idiomatic Go, `gofmt`, descriptive names, explicit errors, and `*_test.go` files with `Test...` functions. Test CLI validation, concurrent code consumption/reload, directory isolation, expiry, blacklisting, persistence failures, log rotation/retention and credential redaction. Validate arguments before side effects. No coverage threshold is established.

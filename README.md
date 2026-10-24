@@ -26,6 +26,45 @@ make build
 
 `init` 不覆盖已有配置。所有相对配置路径相对于配置文件目录解析。构建产物、Go 缓存和测试临时文件均位于仓库的 `tmp/`，不进入版本控制。部署时可以把 `tmp/filegate` 复制到其他位置，另行初始化运行目录。
 
+## 部署用户与权限
+
+正式部署统一使用专用系统用户 `filegate`，禁用交互登录；开发测试可以使用开发用户。服务不需要 root，默认端口 `8080` 可由普通用户监听。管理员负责安装、配置和更新，服务进程使用受限权限运行。
+
+建议二进制安装到 `/usr/local/bin/filegate`，部署目录使用 `/srv/filegate`，配置路径为 `/srv/filegate/config.json`。文件权限按以下方式分配：
+
+| 对象 | 建议权限 |
+| --- | --- |
+| 二进制 | root 拥有，`filegate` 只读、可执行，不可修改 |
+| 部署目录、配置 | root 拥有，组为 `filegate`；目录 `0750`、配置 `0640`，服务只读 |
+| `content/` | 管理员维护；服务可读取文件、遍历目录，无须写权限 |
+| `state/`、`logs/` | `filegate` 拥有，目录 `0700`，内部私有文件 `0600` |
+| 黑名单 | 服务可读取和更新；原子替换也要求其所在目录可写 |
+| TLS 私钥（如启用） | 仅管理员和服务用户可读，放在内容目录之外 |
+
+为了让部署目录保持只读，建议在配置中设置 `"blacklist": "state/blacklist.txt"`。`init` 默认仍生成部署目录下的 `blacklist.txt`，不会自动调整部署权限；新部署应在首次启动前移动文件并修改配置，已有部署应停服迁移并保留全部黑名单内容。配置文件所在目录不能允许服务用户写入，否则即使配置文件只读，也可能被替换。
+
+用服务用户执行 `init`，随后由管理员设置上述所有权和权限；不要让 root 初始化出的私有状态和日志文件阻止服务用户访问。已有部署不要重新初始化。管理命令也使用服务用户，例如：
+
+```bash
+sudo -u filegate /usr/local/bin/filegate \
+  --config /srv/filegate/config.json code ab --ttl 30m
+```
+
+长期运行建议使用 systemd；服务单元的关键配置如下（部署示例，并非程序自动安装的服务）：
+
+```ini
+[Service]
+User=filegate
+Group=filegate
+WorkingDirectory=/srv/filegate
+ExecStart=/usr/local/bin/filegate --config /srv/filegate/config.json serve
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=true
+```
+
+当前程序**尚未检查或拒绝 root 启动**，也不会自动创建用户或降权。后续建议仅对 `serve` 检查有效用户 ID：若为 `0`，在读取配置、创建文件或监听端口前报错退出，提示切换服务用户；`--help`、`--version` 和本地管理命令仍允许 root 执行。普通用户不强制命名为 `filegate`，不提供默认的 root 豁免选项。此启动检查属于待实现方案。
+
 ## 命令行选项
 
 运行 `./tmp/filegate --help` 查看全部选项、默认值，以及初始化、使用默认中文目录、新增目录、编辑别名、发送 SIGHUP 和发码的完整示例。`--config` 默认使用当前工作目录的 `config.json`；省略 `--ttl` 时采用运行中服务的 `code_ttl`（初始化值为 `10m`），不是固定覆盖为 10 分钟。帮助中的配置默认值指 `init` 创建的新配置，不代表当前已修改的配置。
