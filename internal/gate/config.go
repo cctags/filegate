@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	"filegate/internal/logging"
@@ -73,6 +76,15 @@ func Load(path string) (Config, error) {
 	if c.Listen == "" || c.Root == "" || c.StateDir == "" || c.Blacklist == "" || len(c.Directories) == 0 {
 		return c, errors.New("listen, root, state_dir, blacklist and directories are required")
 	}
+	host, port, err := net.SplitHostPort(c.Listen)
+	if err != nil {
+		return c, errors.New("listen must be an IPv4 address and numeric port")
+	}
+	ip, err := netip.ParseAddr(host)
+	number, portErr := strconv.Atoi(port)
+	if err != nil || !ip.Is4() || portErr != nil || number < 1 || number > 65535 {
+		return c, errors.New("listen must be an IPv4 address and port from 1 to 65535")
+	}
 	c.Root = resolve(c.Root)
 	c.StateDir = resolve(c.StateDir)
 	c.Blacklist = resolve(c.Blacklist)
@@ -83,8 +95,31 @@ func Load(path string) (Config, error) {
 	if err := logging.ValidateDirectory(c.Logging.Directory, c.Root); err != nil {
 		return c, err
 	}
-	if rel, e := filepath.Rel(c.Root, resolve(filepath.Base(path))); e == nil && filepath.IsLocal(rel) {
-		return c, errors.New("configuration must be outside the content root")
+	configPath, err := filepath.Abs(path)
+	if err != nil {
+		return c, err
+	}
+	actual, err := filepath.EvalSymlinks(configPath)
+	if err != nil {
+		return c, err
+	}
+	content, err := filepath.EvalSymlinks(c.Root)
+	if err != nil {
+		return c, err
+	}
+	opened, err := f.Stat()
+	if err != nil {
+		return c, err
+	}
+	current, err := os.Stat(actual)
+	if err != nil {
+		return c, err
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(opened, current) {
+		return c, errors.New("configuration changed while loading or is not a regular file")
+	}
+	if rel, err := filepath.Rel(content, actual); err != nil || filepath.IsLocal(rel) {
+		return c, errors.New("configuration must be outside the content root (including symlinks)")
 	}
 	if c.TLSCert != "" {
 		c.TLSCert = resolve(c.TLSCert)
@@ -112,9 +147,10 @@ func Load(path string) (Config, error) {
 	}
 	re := regexp.MustCompile(`^[a-z]{1,16}$`)
 	for alias, dir := range c.Directories {
-		if !re.MatchString(alias) || dir == "." || !filepath.IsLocal(dir) {
+		if !re.MatchString(alias) || filepath.Clean(dir) == "." || !filepath.IsLocal(dir) || hasParentComponent(dir) {
 			return c, fmt.Errorf("invalid alias or relative directory: %s", alias)
 		}
+		c.Directories[alias] = filepath.Clean(dir)
 	}
 	return c, nil
 }

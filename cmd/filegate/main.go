@@ -20,6 +20,7 @@ import (
 )
 
 const example = `{
+  // 仅支持 IPv4 地址和数字端口；不接受主机名或 IPv6。
   "listen": "0.0.0.0:17342",
 
   // 相对路径以本配置文件所在目录为基准。
@@ -36,6 +37,7 @@ const example = `{
     "ch": "文件夹"
   },
 
+  // 每个别名最多保留 10 个未使用且未过期的访问码。
   // 默认访问码有效期，可由 --ttl 覆盖；成功登录一次即失效。
   // 与登录后的会话期限无关。时长格式支持 30s、10m、8h。
   "code_ttl": "10m",
@@ -192,11 +194,16 @@ func runArgsWithEUID(args []string, output io.Writer, euid int) (returnErr error
 	signal.Notify(reload, syscall.SIGHUP)
 	defer signal.Stop(reload)
 	done := make(chan error, 1)
+	listener, e := gate.ListenIPv4(c.Listen)
+	if e != nil {
+		return e
+	}
+	defer listener.Close()
 	go func() {
 		if c.TLSCert != "" {
-			done <- server.ListenAndServeTLS(c.TLSCert, c.TLSKey)
+			done <- server.ServeTLS(listener, c.TLSCert, c.TLSKey)
 		} else {
-			done <- server.ListenAndServe()
+			done <- server.Serve(listener)
 		}
 	}()
 	slog.Info("filegate starting", "listen", c.Listen, "https", c.TLSCert != "", "admin", "local Unix socket only", "log_directory", c.Logging.Directory, "version", version)

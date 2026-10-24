@@ -25,6 +25,8 @@ var translations = map[string]map[string]string{
 		"InvalidCode":     "访问码无效、已使用或已过期", "SessionLimit": "会话数量已达上限",
 		"SaveFailed": "无法保存登录状态，请稍后重试", "InvalidLogout": "无效退出请求",
 		"NotFound": "文件或页面不存在", "ReadFailed": "无法读取文件",
+		"Busy": "服务繁忙，请稍后重试", "InvalidRange": "仅支持单个且不超过 128 字节的文件范围请求",
+		"DirectoryTooLarge": "目录条目过多，请将文件分放到子目录",
 	},
 	"en": {
 		"Title": "File access", "Heading": "Access files",
@@ -40,6 +42,8 @@ var translations = map[string]map[string]string{
 		"InvalidCode":     "The access code is invalid, already used or expired", "SessionLimit": "Session limit reached",
 		"SaveFailed": "Unable to save login state; please try again later", "InvalidLogout": "Invalid logout request",
 		"NotFound": "File or page not found", "ReadFailed": "Unable to read file",
+		"Busy": "Service busy; please try again later", "InvalidRange": "Only one file range with a header of at most 128 bytes is supported",
+		"DirectoryTooLarge": "Too many directory entries; organize files into subdirectories",
 	},
 }
 

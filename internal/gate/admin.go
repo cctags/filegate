@@ -82,6 +82,15 @@ func (a *App) Admin(r Request) (out Reply) {
 		if len(a.state.Codes) >= 10000 {
 			return fail(errors.New("too many active codes"))
 		}
+		active := 0
+		for _, code := range a.state.Codes {
+			if code.Alias == r.Value {
+				active++
+			}
+		}
+		if active >= maxCodesPerAlias {
+			return fail(errors.New("too many active codes for this alias (limit 10); revoke unused codes first"))
+		}
 		var plain, digest string
 		for {
 			n, e := rand.Int(rand.Reader, big.NewInt(100000000))

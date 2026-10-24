@@ -2,6 +2,7 @@ package gate
 
 import (
 	"crypto/hmac"
+	"errors"
 	"html/template"
 	"io"
 	"log/slog"
@@ -35,7 +36,13 @@ type view struct {
 	Entries                          []entry
 }
 
-func netipAddr(s string) (netip.Addr, error) { ip, e := netip.ParseAddr(s); return ip.Unmap(), e }
+func netipAddr(s string) (netip.Addr, error) {
+	ip, err := netip.ParseAddr(s)
+	if err != nil || !ip.Is4() {
+		return netip.Addr{}, errors.New("only IPv4 addresses are supported")
+	}
+	return ip, nil
+}
 func clientIP(r *http.Request) (netip.Addr, error) {
 	host, _, e := net.SplitHostPort(r.RemoteAddr)
 	if e != nil {
@@ -88,7 +95,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		webError(w, r, "NotFound", http.StatusNotFound)
 	})
-	return a.accessLog(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return a.accessLog(a.limitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// no-referrer makes browsers send Origin: null on ordinary form POSTs,
@@ -128,7 +135,7 @@ func (a *App) Handler() http.Handler {
 		}
 		saveLanguage(w, r)
 		mux.ServeHTTP(w, r)
-	}))
+	})))
 }
 func (a *App) session(r *http.Request) (Session, bool) {
 	a.mu.Lock()
@@ -172,19 +179,54 @@ func (a *App) openFile(r *http.Request, name string) (*os.File, error) {
 }
 
 func (a *App) login(w http.ResponseWriter, r *http.Request) {
-	ip, _ := clientIP(r)
-	now := time.Now()
+	// Read untrusted network data before taking the shared state lock.
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	parseErr := r.ParseForm()
+	status, message, id := a.consumeLogin(r, parseErr)
+	if status != http.StatusSeeOther {
+		if status == http.StatusTooManyRequests {
+			w.Header().Set("Retry-After", "60")
+		}
+		if status == http.StatusUnauthorized {
+			render(w, r, status, view{Login: true, Error: message})
+		} else {
+			webError(w, r, message, status)
+		}
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: id, Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
+	http.Redirect(w, r, "/browse/", http.StatusSeeOther)
+}
+
+// Only state validation and durable consumption are serialized. Never read or
+// write a client connection while holding this lock.
+func (a *App) consumeLogin(r *http.Request, parseErr error) (int, string, string) {
+	ip, err := clientIP(r)
+	if err != nil {
+		return 400, "InvalidSource", ""
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.closed {
+		return 503, "Unavailable", ""
+	}
+	blocked, err := a.blocked(ip)
+	if err != nil {
+		slog.Error("blacklist unavailable", "error", err)
+		return 503, "Unavailable", ""
+	}
+	if blocked {
+		return 403, "Blocked", ""
+	}
+	now := time.Now()
+	a.cleanup(now)
 	if now.Sub(a.globalSince) >= time.Minute {
 		a.globalSince = now
 		a.globalCount = 0
 	}
 	a.globalCount++
 	if a.globalCount > 1000 {
-		w.Header().Set("Retry-After", "60")
-		webError(w, r, "TooManyRequests", 429)
-		return
+		return 429, "TooManyRequests", ""
 	}
 	key := ip.String()
 	v := a.attempts[key]
@@ -212,18 +254,15 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	if v.Count > a.cfg.AttemptsPerMinute {
 		ban()
 		a.attempts[key] = v
-		webError(w, r, "RateBanned", 403)
-		return
+		return 403, "RateBanned", ""
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1024)
-	e := r.ParseForm()
 	plain := strings.ToLower(strings.TrimSpace(r.PostForm.Get("code")))
 	digest := a.digest(plain)
 	var matched Code
 	valid := false
-	if e == nil && len(plain) >= 9 && len(plain) <= 24 {
+	if parseErr == nil && len(plain) >= 9 && len(plain) <= 24 {
 		for _, c := range a.state.Codes {
-			if hmac.Equal([]byte(c.Digest), []byte(digest)) && now.Before(c.Expires) {
+			if hmac.Equal([]byte(c.Digest), []byte(digest)) && time.Now().Before(c.Expires) {
 				if _, ok := a.roots[c.Alias]; ok {
 					matched = c
 					valid = true
@@ -238,22 +277,18 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("login failed", "ip", key)
 		if v.Failures >= a.cfg.MaxFailures {
 			ban()
-			webError(w, r, "FailureBanned", 403)
-			return
+			return 403, "FailureBanned", ""
 		}
-		render(w, r, 401, view{Login: true, Error: "InvalidCode"})
-		return
+		return 401, "InvalidCode", ""
 	}
 	if len(a.sessions) >= 10000 {
-		webError(w, r, "SessionLimit", 503)
-		return
+		return 503, "SessionLimit", ""
 	}
 	delete(a.state.Codes, matched.ID)
-	if e = a.save(); e != nil {
+	if e := a.save(); e != nil {
 		a.state.Codes[matched.ID] = matched
 		slog.Error("consume code", "error", e)
-		webError(w, r, "SaveFailed", 503)
-		return
+		return 503, "SaveFailed", ""
 	}
 	// Preserve IP request counts even after a successful login.
 	v.Failures = 0
@@ -262,10 +297,10 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		delete(a.sessions, old.Value)
 	}
 	id := token()
-	a.sessions[id] = Session{Alias: matched.Alias, CSRF: token(), IP: key, Created: now, Seen: now}
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: id, Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode})
+	created := time.Now()
+	a.sessions[id] = Session{Alias: matched.Alias, CSRF: token(), IP: key, Created: created, Seen: created}
 	slog.Info("login succeeded", "ip", key, "alias", matched.Alias, "code_id", matched.ID)
-	http.Redirect(w, r, "/browse/", 303)
+	return 303, "", id
 }
 func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.session(r)
@@ -321,9 +356,13 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	list, e := f.ReadDir(-1)
-	if e != nil {
+	list, e := f.ReadDir(maxDirectoryEntries + 1)
+	if e != nil && e != io.EOF {
 		webError(w, r, "NotFound", http.StatusNotFound)
+		return
+	}
+	if len(list) > maxDirectoryEntries {
+		webError(w, r, "DirectoryTooLarge", 503)
 		return
 	}
 	for _, part := range strings.Split(name, "/") {
@@ -361,6 +400,18 @@ func (a *App) browse(w http.ResponseWriter, r *http.Request) {
 func (a *App) file(w http.ResponseWriter, r *http.Request) {
 	_, ok := a.authorize(w, r)
 	if !ok {
+		return
+	}
+	ip, _ := clientIP(r)
+	if !a.downloads.acquire(ip.String()) {
+		w.Header().Set("Retry-After", "5")
+		webError(w, r, "Busy", 429)
+		return
+	}
+	defer a.downloads.release(ip.String())
+	ranges := r.Header.Values("Range")
+	if len(ranges) > 1 || (len(ranges) == 1 && (len(ranges[0]) > 128 || strings.Contains(ranges[0], ","))) {
+		webError(w, r, "InvalidRange", 400)
 		return
 	}
 	name, ok := relative(r.URL.Path, "/file/")

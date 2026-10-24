@@ -36,6 +36,10 @@ ALIAS, ID and IP_OR_CIDR are required for their respective actions and have
 no default. ALIAS is a configured key of 1-16 lowercase English letters,
 not a directory path. Directory names may contain Chinese characters.
 Management actions require a running server and its OS user (or root).
+Only IPv4 is supported. listen requires a literal IPv4 address and numeric
+port (1-65535); blacklists accept IPv4 addresses and CIDRs only.
+Directory mappings must be distinct, non-nested subdirectories, including
+resolved symlink targets; the root itself and parent components are rejected.
 serve refuses effective UID 0 before reading configuration; use a dedicated
 non-root service user (normally filegate). Other actions may run as root.
 --help and --version need neither a configuration file nor a running server.
@@ -70,6 +74,15 @@ Configuration defaults written by init:
 These are initialization defaults, not overrides of an existing config.
 Relative paths inside JSON resolve from the configuration file's directory.
 Thus --config tmp/demo/config.json uses tmp/demo/content as its default root.
+
+Fixed safety limits (not configuration fields):
+  TCP connections        128; excess connections wait for a free slot
+  Active HTTP requests   128 (including HTTP/2 streams); excess returns 429
+  File requests          32 globally, 4 per client IP; excess returns 429
+  Response write idle    30s, renewed as chunks are written
+  Directory entries      10000 raw entries; larger listings return 503
+  Active codes per alias 10; revoke unused codes or wait for expiry
+  Range requests         One range, at most 128 header bytes; else returns 400
 
 Server signals:
   SIGHUP                 Reload directory mappings and runtime limits;

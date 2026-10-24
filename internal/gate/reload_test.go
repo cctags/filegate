@@ -114,7 +114,13 @@ func TestReloadRevokesChangedDirectory(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer inFlight.Close()
-	c.Directories = map[string]string{"ab": "cd", "cd": "cd"}
+	if e := os.Mkdir(filepath.Join(c.Root, "replacement"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(c.Root, "replacement", "secret.txt"), []byte("replacement"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	c.Directories = map[string]string{"ab": "replacement", "cd": "cd"}
 	writeReloadConfig(t, file, c)
 	result, e := a.Reload(file)
 	if e != nil {
@@ -232,7 +238,13 @@ func TestReloadRollsBackOnPersistenceFailure(t *testing.T) {
 	file, c := reloadConfig(t, a)
 	session := access(t, a)
 	code := createCode(t, a, "ab")
-	c.Directories = map[string]string{"ab": "cd", "cd": "cd"}
+	if e := os.Mkdir(filepath.Join(c.Root, "replacement"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(c.Root, "replacement", "secret.txt"), []byte("replacement"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	c.Directories = map[string]string{"ab": "replacement", "cd": "cd"}
 	writeReloadConfig(t, file, c)
 	// Make the final rename fail without depending on permissions or root status.
 	state := filepath.Join(c.StateDir, "state.json")
@@ -320,7 +332,10 @@ func TestReloadConcurrentRequests(t *testing.T) {
 	file, c := reloadConfig(t, a)
 	cookie := access(t, a)
 	// Change only an unrelated alias while requests continue through ab.
-	c.Directories = map[string]string{"ab": "ab", "cd": "cd", "extra": "cd"}
+	if e := os.Mkdir(filepath.Join(c.Root, "extra"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	c.Directories = map[string]string{"ab": "ab", "cd": "cd", "extra": "extra"}
 	writeReloadConfig(t, file, c)
 	var wg sync.WaitGroup
 	for range 3 {

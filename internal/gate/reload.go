@@ -48,7 +48,10 @@ func (a *App) Reload(path string) (ReloadResult, error) {
 	if _, err = a.blacklist(); err != nil {
 		return result, err
 	}
-	roots := make(map[string]*os.Root, len(next.Directories))
+	roots, err := openDirectories(a.root, next.Directories)
+	if err != nil {
+		return result, err
+	}
 	applied := false
 	defer func() {
 		if !applied {
@@ -57,11 +60,7 @@ func (a *App) Reload(path string) (ReloadResult, error) {
 	}()
 	changed := map[string]bool{}
 	for alias, dir := range next.Directories {
-		root, e := a.root.OpenRoot(dir)
-		if e != nil {
-			return result, fmt.Errorf("directory %s: %w", alias, e)
-		}
-		roots[alias] = root
+		root := roots[alias]
 		if old, ok := a.roots[alias]; ok {
 			oldInfo, e := old.Stat(".")
 			if e != nil {

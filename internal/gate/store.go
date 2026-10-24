@@ -48,6 +48,8 @@ type App struct {
 	root        *os.Root
 	globalSince time.Time
 	globalCount int
+	downloads   downloadLimiter
+	requests    chan struct{}
 }
 
 func token() string { b := make([]byte, 32); rand.Read(b); return hex.EncodeToString(b) }
@@ -63,7 +65,7 @@ func New(c Config) (*App, error) {
 	if err := os.Chmod(c.StateDir, 0700); err != nil {
 		return nil, err
 	}
-	a := &App{cfg: c, sessions: map[string]Session{}, attempts: map[string]attempts{}, roots: map[string]*os.Root{}}
+	a := &App{cfg: c, sessions: map[string]Session{}, attempts: map[string]attempts{}, roots: map[string]*os.Root{}, requests: make(chan struct{}, maxRequests)}
 	b, err := os.ReadFile(filepath.Join(c.StateDir, "state.json"))
 	if os.IsNotExist(err) {
 		a.state = State{Secret: token(), Codes: map[string]Code{}, Bans: map[string]time.Time{}}
@@ -104,13 +106,10 @@ func New(c Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	for alias, dir := range c.Directories {
-		r, e := a.root.OpenRoot(dir)
-		if e != nil {
-			a.Close()
-			return nil, fmt.Errorf("directory %s: %w", alias, e)
-		}
-		a.roots[alias] = r
+	a.roots, err = openDirectories(a.root, c.Directories)
+	if err != nil {
+		a.Close()
+		return nil, err
 	}
 	if _, err = a.blacklist(); err != nil {
 		a.Close()
@@ -167,19 +166,24 @@ func (a *App) blacklist() ([]netip.Prefix, error) {
 }
 func parsePrefix(s string) (netip.Prefix, error) {
 	if ip, e := netip.ParseAddr(s); e == nil {
-		ip = ip.Unmap()
+		if !ip.Is4() {
+			return netip.Prefix{}, errors.New("only IPv4 blacklist entries are supported")
+		}
 		return netip.PrefixFrom(ip, ip.BitLen()), nil
 	}
 	p, e := netip.ParsePrefix(s)
 	if e != nil {
 		return p, e
 	}
-	if p.Addr().Is4In6() {
-		return netip.Prefix{}, errors.New("use IPv4 notation instead of mapped IPv6 CIDR")
+	if !p.Addr().Is4() {
+		return netip.Prefix{}, errors.New("only IPv4 blacklist entries are supported")
 	}
 	return p.Masked(), nil
 }
 func (a *App) blocked(ip netip.Addr) (bool, error) {
+	if !ip.Is4() {
+		return true, errors.New("only IPv4 addresses are supported")
+	}
 	list, e := a.blacklist()
 	if e != nil {
 		return true, e
