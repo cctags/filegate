@@ -8,6 +8,7 @@ const path = require('node:path');
 const net = require('node:net');
 const http = require('node:http');
 const { once } = require('node:events');
+const { CDP, startupDiagnostics } = require('./cdp.cjs');
 
 const root = path.resolve(__dirname, '..');
 const binary = path.join(root, 'tmp/filegate');
@@ -16,6 +17,9 @@ const config = path.join(dir, 'config.json');
 const env = { ...process.env, TMPDIR: dir };
 let app, chrome, external, cdp;
 let appOutput = '', chromeOutput = '';
+let browserReady = false;
+const browserStartupTimeout = 30000;
+const startupOutputLimit = 16384;
 const credentials = [];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check, description) {
@@ -40,38 +44,6 @@ async function stop(child) {
   const exited = once(child, 'exit'); child.kill('SIGTERM');
   const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
   try { await exited; } finally { clearTimeout(timer); }
-}
-
-class CDP {
-  constructor(child) {
-    this.child = child; this.id = 0; this.waiting = new Map(); this.events = []; this.buffer = '';
-    child.stdio[4].setEncoding('utf8');
-    child.stdio[4].on('data', data => {
-      this.buffer += data;
-      for (;;) {
-        const end = this.buffer.indexOf('\0'); if (end < 0) break;
-        const raw = this.buffer.slice(0, end); this.buffer = this.buffer.slice(end + 1);
-        if (!raw) continue;
-        const message = JSON.parse(raw);
-        if (!message.id) { this.events.push(message); continue; }
-        const pending = this.waiting.get(message.id); if (!pending) continue;
-        this.waiting.delete(message.id); clearTimeout(pending.timer);
-        message.error ? pending.reject(Error(message.error.message)) : pending.resolve(message.result);
-      }
-    });
-    child.once('exit', () => this.close());
-    child.stdio[3].on('error', () => this.close());
-    child.stdio[4].on('error', () => this.close());
-  }
-  close() { for (const pending of this.waiting.values()) { clearTimeout(pending.timer); pending.reject(Error('Browser exited')); } this.waiting.clear(); }
-  send(method, params = {}, sessionId) {
-    return new Promise((resolve, reject) => {
-      const id = ++this.id;
-      const timer = setTimeout(() => { this.waiting.delete(id); reject(Error(`CDP timeout: ${method}`)); }, 5000);
-      this.waiting.set(id, { resolve, reject, timer });
-      this.child.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
-    });
-  }
 }
 
 async function scenario(base, landing, javascript) {
@@ -157,16 +129,19 @@ async function scenario(base, landing, javascript) {
     fs.writeFileSync(path.join(dir, 'content/ab/image.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><script>globalThis.filegateFileExecuted=true</script></svg>');
     fs.writeFileSync(path.join(dir, 'content/cd/only-cd.txt'), 'other directory');
     app = spawn(binary, ['--config', config, 'serve'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
-    app.on('error', err => { appOutput += err.message; }); app.stderr.on('data', b => { appOutput += b; });
+    app.on('error', err => { if (!browserReady) appOutput = (appOutput + err.message).slice(-startupOutputLimit); });
+    app.stderr.on('data', b => { if (!browserReady) appOutput = (appOutput + b).slice(-startupOutputLimit); });
     await until(async () => { if (app.exitCode !== null) throw Error('Test service failed to start'); try { return (await fetch(base, { signal: AbortSignal.timeout(500) })).ok; } catch { return false; } }, 'service readiness');
     const landing = { url: base };
     external = http.createServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(`<a id="enter" href="${landing.url}">Open access link</a>`); });
     external.listen(0, '127.0.0.1'); await once(external, 'listening'); landing.origin = `http://localhost:${external.address().port}/`;
     chrome = spawn(process.env.CHROME_BIN || 'google-chrome', ['--headless', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--remote-debugging-pipe', `--user-data-dir=${path.join(dir, 'chrome')}`, 'about:blank'], { env, stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
-    chrome.stderr.on('data', b => { chromeOutput += b; });
-    const spawned = once(chrome, 'spawn'); await spawned;
+    chrome.stderr.on('data', b => { if (!browserReady) chromeOutput = (chromeOutput + b).slice(-startupOutputLimit); });
+    // Register pipe/exit/error handlers before waiting, including spawn failures.
     cdp = new CDP(chrome);
-    const version = await cdp.send('Browser.getVersion'); console.log(`Browser: ${version.product}`);
+    const version = await cdp.send('Browser.getVersion', {}, undefined, browserStartupTimeout);
+    browserReady = true;
+    console.log(`Browser: ${version.product}`);
     for (const javascript of [true, false]) await scenario(base, landing, javascript);
     const log = fs.readFileSync(path.join(dir, 'logs/filegate.log'), 'utf8');
     assert.ok(log.includes('timezone=Asia/Shanghai') && log.includes('utc_offset_minutes=480'));
@@ -175,6 +150,7 @@ async function scenario(base, landing, javascript) {
   } catch (err) {
     // CDP messages and captured requests can contain codes; never dump them.
     console.error(`Browser regression failed: ${err.message}`);
+    if (!browserReady) console.error(startupDiagnostics(chrome, chromeOutput, appOutput));
     console.error(`Artifacts retained in ${dir}`);
     process.exitCode = 1;
   } finally {

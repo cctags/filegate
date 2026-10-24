@@ -59,6 +59,7 @@ Before creating or moving a version tag, or publishing a release, verify the int
 Release infrastructure changes also require `make test-release` and workflow linting. Pin Actions to reviewed full commit SHAs, keep PR/tests read-only and grant write permission only to the draft-release job. Never include runtime data in packages, overwrite published assets or move existing tags. Require a dated CHANGELOG section and native architecture smoke tests; distinguish local validation from actual GitHub runs. Packaging fixture tags are confined to temporary repositories and are not project releases.
 
 Report checks run and material omissions. Finish by checking test children/listeners/profiles are closed or removed; preserve user data, useful reports and build caches unless cleanup is requested.
+Keep Chrome startup deadlines separate from CDP command deadlines, reject closed transports promptly and retain bounded, redacted startup diagnostics before issuing test credentials. Never dump protocol messages, captured requests or browser profiles into CI logs.
 
 ## Security & State
 

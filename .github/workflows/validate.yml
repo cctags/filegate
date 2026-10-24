@@ -51,6 +51,7 @@ jobs:
         if: inputs.browser || inputs.full
         run: |
           command -v google-chrome
+          google-chrome --version
           node --version
           make test-browser
       - name: Fuzz all gate targets

@@ -96,6 +96,20 @@ temporary data is deleted on success; failed runs retain artifacts in the
 reported `tmp/browser-*` directory. Those artifacts can contain test access
 codes in browser history and must remain untracked.
 
+The first `Browser.getVersion` handshake has a separate 30-second startup
+deadline; subsequent CDP commands retain their 5-second deadline. Pipe EOF,
+closure, spawn errors and browser exit reject pending/future requests instead
+of waiting for a timeout. `make test-browser` first runs the dependency-free
+transport regressions in `cdp_test.cjs`, including delayed startup, framing,
+disconnects, bounded timeout and diagnostic redaction.
+
+If startup fails, the runner prints bounded startup-only Chrome/service stderr
+with URLs, authentication headers and credential fields redacted, plus browser
+exit/signal state. No CDP messages, captured requests or profile contents are
+dumped. CI also prints the installed Chrome version. A handshake timeout means
+the browser did not answer before the deadline; it does not by itself establish
+a Filegate login failure or prove which browser/environment problem occurred.
+
 The suite tests actual Origin headers, SameSite cookies, manual code login,
 cross-site link landing/confirmation, replacement of an existing login,
 directory isolation and logout, with JavaScript enabled and disabled. With

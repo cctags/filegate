@@ -332,6 +332,18 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 
 对应长名称测试由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。用户随后要求以北京时间 2026-10-24 19:39:50 +0800 提交，本轮将作者和提交者日期均设为该值，提交信息为 `test: Shorten Unix socket fixture paths`；实际分析与验证日期仍为 2026-11-02。未推送或打标签。
 
+### GitHub CI 的 Chrome 首次 CDP 握手超时（2026-11-02）
+
+用户再次提供 error.txt，CI 在 make test-browser 的 Browser.getVersion 超时；基线 HEAD 为 d748bb1，开始时跟踪文件干净，用户已有未跟踪日志/补丁材料。本轮保留 error.txt 内容不变，不将用户材料加入改动。日志仅能证明首次 Chrome/CDP 握手超过旧版 5 秒上限，尚未进入浏览器登录场景；没有 Chrome stderr/退出状态，不能据此唯一确定慢启动、Chrome 异常还是管道问题。本机旧版正常 Chrome 回归通过，因此没有宣称完整复现 CI 环境或确定远端根因。
+
+从 tests/browser.cjs 提取仅用 Node 内置模块的 tests/cdp.cjs；首次 Browser.getVersion 独立等待 30 秒，其他命令仍 5 秒。启动时立即注册错误/退出/管道处理；EOF、close、写入失败、spawn error、进程提前退出和无效响应及时拒绝已有/后续调用，清理定时器，不回显原始协议载荷。仅在握手前限长采集服务/Chrome 启动 stderr，启动失败时输出退出/信号状态及过滤 URL、认证头、凭据字段后的诊断；不采集或输出后续 CDP 请求、浏览器凭据和 profile。CI 浏览器步骤补 Chrome --version。原登录/确认/CSP/文件隔离断言保留，不跳过失败或放宽为成功。
+
+新增 tests/cdp_test.cjs 的 10 个传输回归，覆盖独立启动预算、真实无响应的有界超时、UTF-8/NUL 分帧、乱序响应、EOF/关闭/错误/退出/启动错误、已退出进程、载荷与诊断脱敏；make test-browser 先执行它们，再运行完整 Chrome 场景。AGENTS、测试指南和 CHANGELOG 已同步。
+
+验证：Node 24.13.0、Chrome 155.0.8059.39 下正常浏览器及人为延迟 6 秒启动（tmp/ci-chrome-delay.py）两次完整回归均通过，包含启用/禁用脚本、登录、跨站链接确认、CSP、时区、退出、目录隔离和日志脱敏；10 个传输测试通过。make test-release（含 amd64 原生烟雾/arm64 交叉编译）、actionlint 1.7.12、JS 语法、相对文档链接和 git diff --check 通过。日志在 tmp/browser-ci-before.log、tmp/browser-ci-after.log、tmp/browser-ci-delayed.log、tmp/cdp-transport-tests.log、tmp/browser-ci-package-tests.log。未改 Go 生产代码，不重跑 Go 竞态/进程/fuzz；未在日志所示 Node 24.22.1 或实际 GitHub runner 上验收，远端仍需重跑，如仍失败应按新启动诊断继续定位。
+
+沙箱外确认无 Filegate/Go/Node/Chrome/crashpad 测试进程、profile、临时打包目录或 socket；保留报告、延迟包装器和缓存，未操作 tmp/demo 或实际服务。旧 CDP 代码由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。用户随后要求以北京时间 2026-10-24 19:41:08 +0800 提交，作者和提交者日期均设为该值，提交信息为 `test: Harden Chrome startup and CDP transport`；实际分析与验证日期仍为 2026-11-02。error.txt 不纳入提交，未推送、打标签或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

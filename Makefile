@@ -22,6 +22,7 @@ test-integration: prepare
 	FILEGATE_INTEGRATION=1 go test -race -count=1 ./cmd/filegate -run '^TestProcess'
 
 test-browser: build
+	node --test tests/cdp_test.cjs
 	node tests/browser.cjs
 
 test-release: prepare
