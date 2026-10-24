@@ -160,6 +160,20 @@ func TestAdminUnixPermissionsAndRecovery(t *testing.T) {
 	lock.Close()
 }
 
+func TestAdminUnixSocketWithLongTestName(t *testing.T) {
+	t.Run(strings.Repeat("nested-socket-", 8), func(t *testing.T) {
+		a := setup(t)
+		listener, err := a.AdminListener()
+		if err != nil {
+			t.Fatal(err)
+		}
+		serveAdminForTest(t, a, listener)
+		if _, err := Call(a.cfg, Request{Action: "status"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestAdminCallRejectsBrokenReplies(t *testing.T) {
 	for _, reply := range []string{"not JSON", `{"error":"controlled failure"}`, `{"error":"` + strings.Repeat("x", 4<<20) + `"}`} {
 		t.Run(reply[:min(18, len(reply))], func(t *testing.T) {

@@ -22,6 +22,11 @@ make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 `FILEGATE_INTEGRATION=1` is set. `make test-integration` enables them explicitly.
 The process tests skip when run as root; use a normal development account.
 All socket/port tests require an environment that permits local listeners.
+Gate fixtures use short random directory names under the configured `TMPDIR`,
+without embedding test names: Linux pathname Unix sockets allow at most 107
+pathname bytes. Keep checkout/temp roots reasonably short; a `bind: invalid
+argument` with an overlong `admin.sock` path is a path-length failure, even when
+the preceding authentication/persistence logs are expected test scenarios.
 Test services bind only to loopback IPv4 and use generated temporary data.
 They do not use `tmp/demo` or an existing service's configuration.
 

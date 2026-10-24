@@ -1,6 +1,6 @@
 # Filegate 会话恢复记录
 
-更新时间：2026-10-24。本文保存开发上下文，供新会话接手；具体实现以源码、Git 历史和当前配置为准。
+更新时间：2026-11-02。本文保存开发上下文，供新会话接手；具体实现以源码、Git 历史和当前配置为准。
 
 ## 1. 从这里恢复
 
@@ -321,6 +321,16 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 另以 tmp/rehearse-operations.py 在独立虚构部署演练真实进程：GNU tar 停服归档、SHA256、中文文件、备份后消费访问码、恢复旧快照确可使码重新有效；全封禁时 Web 403 但本机管理可逐项撤销，重启切回原黑名单后旧码/旧会话失效，永久和持久化临时封禁保留，新码可读取中文且隔离其他目录。首次沙箱内因 socket 权限失败，获准沙箱外运行后通过。会话被用户中断后恢复任务，核对日志和工作区继续完成，未重复生产操作。仅同版本、同用户、回环 IPv4 演练，不声称完成真实 systemd/root 权限、TLS/ACL/SELinux、跨版本迁移、介质故障、加密异地备份或实际生产恢复验收。
 
 沙箱外检查确认无 Filegate/Go/Node/Chrome 等相关进程、演练/打包临时目录或测试 socket；所有子进程已等待退出，虚构部署自动删除。保留 tmp/operations-rehearsal.log、tmp/operations-package-test.log、演练脚本及构建缓存。未读取或改动 tmp/demo，不安装/启用服务、修改用户或主机部署。用户随后要求提交，本轮将指南、文档入口和发行包白名单一并提交，提交信息使用 `docs: Add upgrade, backup and recovery procedures`；未打标签、推送或发布。
+
+### GitHub CI 的 Unix socket 路径过长（2026-11-02）
+
+用户已将项目提交到 GitHub，Actions 实际运行 make test，TestAdminUnixPermissionsAndRecovery 因 bind: invalid argument 失败；基线 HEAD 为 6436a30，本地开始时干净。所报 admin.sock 绝对路径为 112 字节，超过 Linux pathname Unix socket 的通常 107 字节可用路径（sun_path 为 108，需终止 NUL）；本地 Go 的 SockaddrUnix 同样会对超长路径返回 EINVAL。前面的非法码、来源拒绝和持久化失败日志为负向测试输出，不是此次 CI 的失败断言。
+
+已在仓库 tmp/ci-socket-path/runner-work-prefix 下设置 TMPDIR/GOTMPDIR，修复前对原测试稳定复现同样错误，记录 tmp/ci-socket-before.log。根因是公共 setup 使用 t.TempDir，把完整测试名叠加到 CI 的较长 checkout 路径。改为在既有 TMPDIR 内 os.MkdirTemp("gate-")，保持私有随机目录并显式清理；不改生产 socket、黑名单或认证逻辑，不回退 /tmp，不跳过测试。补 TestAdminUnixSocketWithLongTestName，以长嵌套测试名真实绑定并调用管理 socket；其余实际 Unix socket/进程夹具已使用短随机目录。同步 AGENTS、测试指南和 CHANGELOG。
+
+验证：同一长根目录下 4 个管理 socket/锁/协议回归连续 3 次通过（tmp/ci-socket-after.log）；完整 make test 竞态检查、长根目录下全部 gate 竞态测试（tmp/ci-socket-tests.log）、make vet、gofmt 和 git diff --check 通过。未修改生产代码或工作流，不重复进程/浏览器/打包/fuzz；修复后的 GitHub 远端 job 尚未重跑确认。本地仍未配置 remote，不推断实际远端地址。沙箱外只读检查无 Go/Filegate 测试进程、gate 临时目录或 socket 残留，保留报告、缓存及可复用空长路径根；未操作 tmp/demo。
+
+对应长名称测试由 84896d24721c（test: Expand regression and integration coverage）引入，提交添加对应 Fixes trailer。用户随后要求以北京时间 2026-10-24 19:39:50 +0800 提交，本轮将作者和提交者日期均设为该值，提交信息为 `test: Shorten Unix socket fixture paths`；实际分析与验证日期仍为 2026-11-02。未推送或打标签。
 
 ### 默认配置与本地现有配置不同
 

@@ -23,6 +23,7 @@ Filegate uses Go 1.27.3+, Linux/IPv4, and only the standard library. `cmd/filega
 
 Keep caches and temporary files in repository `tmp/`, never `/tmp`. Keep runtime data and binaries untracked.
 Scope Go test/vet commands to `./cmd/... ./internal/...` so temporary Go sources are not scanned. See `tests/README.md` for optional suites and unverified browser/deployment cases. Never use real demo data in tests; bound waits and join/clean up children and goroutines. Avoid parallel tests that mutate global slog, signals or environment.
+Use short random names under the repository test temp root for fixtures that bind Unix sockets; do not include full test/subtest names in socket paths. Test long names without falling back to system `/tmp` or skipping socket checks.
 
 ## CLI & Local Operation
 

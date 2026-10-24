@@ -16,7 +16,17 @@ import (
 
 func setup(t *testing.T) *App {
 	t.Helper()
-	base := t.TempDir()
+	// t.TempDir includes the test name, which can exceed the Unix socket
+	// pathname limit under a longer checkout path such as GitHub Actions.
+	base, err := os.MkdirTemp(os.Getenv("TMPDIR"), "gate-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(base); err != nil {
+			t.Error(err)
+		}
+	})
 	for _, dir := range []string{"content/ab/sub", "content/cd", "state"} {
 		if e := os.MkdirAll(filepath.Join(base, dir), 0700); e != nil {
 			t.Fatal(e)
