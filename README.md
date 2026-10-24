@@ -42,6 +42,41 @@ Web 登录页、目录页和程序自身的错误提示支持简体中文、英�
 
 正式部署统一使用专用系统用户 `filegate`，禁用交互登录；开发测试可以使用开发用户。服务不需要 root，默认端口 `17342` 可由普通用户监听。管理员负责安装、配置和更新，服务进程使用受限权限运行。
 
+### 创建禁止交互登录的用户
+
+以下适用于提供 `useradd` 的常见 Linux 发行版。先检查账号是否存在；已有账号应核对用途和权限，不要重复创建或直接修改其他服务使用的账号：
+
+```bash
+getent passwd filegate
+```
+
+确认不存在后，由有 sudo 权限的管理员执行：
+
+```bash
+sudo useradd --system --user-group --no-create-home \
+  --home-dir /nonexistent --shell /usr/sbin/nologin filegate
+sudo passwd --lock filegate
+```
+
+`--system` 创建系统账号，`--user-group` 同时创建同名主组；不创建 home，`/nonexistent` 仅作为账号记录中的 home 路径。`nologin` 拒绝常规交互式 shell 登录，密码锁定禁止密码认证；不要为该账号设置登录密码或添加 SSH 公钥。部分系统的 nologin 位于 `/sbin/nologin`，可用 `command -v nologin` 查找并替换上述路径。
+
+核对账号、组和密码锁定状态：
+
+```bash
+getent passwd filegate   # 最后一项应为 nologin 的绝对路径
+id filegate
+sudo passwd --status filegate
+```
+
+禁止交互登录不妨碍管理员通过 `sudo -u filegate` 执行具体程序，也不妨碍 systemd 的 `User=filegate`。账号名不应加入 sudo 管理组。创建账号不会安装二进制或准备运行目录；按下面的权限说明部署后，可以前台运行：
+
+```bash
+sudo -u filegate /usr/local/bin/filegate \
+  --config /srv/filegate/config.json serve
+```
+
+### 运行目录与服务权限
+
 建议二进制安装到 `/usr/local/bin/filegate`，部署目录使用 `/srv/filegate`，配置路径为 `/srv/filegate/config.json`。文件权限按以下方式分配：
 
 | 对象 | 建议权限 |

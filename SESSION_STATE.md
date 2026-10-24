@@ -136,6 +136,8 @@ make build
 
 用户已确定今后正式部署使用专用系统用户，通常命名 `filegate`，禁用交互登录；本地开发可使用开发用户。README 已记录权限分配、sudo 管理命令及 systemd `[Service]` 示例。二进制、配置和部署目录由管理员拥有，内容仅需服务读取，state/logs 由服务用户写入。黑名单原子替换要求父目录可写，推荐部署配置使用 `state/blacklist.txt`；这不是生成模板的新默认值。已有部署迁移须停服保留黑名单，不重做 init。
 
+后续补充了具体账号创建方法：先 `getent passwd filegate` 检查，再使用 useradd 的 --system、--user-group、--no-create-home、--home-dir /nonexistent、--shell /usr/sbin/nologin，并用 passwd --lock 锁定密码。README 说明 nologin 的发行版路径差异、账号/组/密码状态核对，以及 sudo -u 和 systemd 不依赖登录 shell。此轮仅写文档，未实际创建账号、修改系统或启动服务；按本机 useradd 手册和 passwd 帮助核对选项，git diff --check 验证，不重复运行代码测试。账号创建说明与恢复记录随本次文档提交保存。
+
 文档先按用户要求提交为 `a8d1c6d`（`docs: Describe deployment with a dedicated service user`），随后实现启动检查：仅 `serve` 使用 `os.Geteuid()` 检查，有效 UID 为 0 时在参数校验后、配置读取和其他副作用前拒绝启动，提示切换用户；帮助、版本、初始化及本地管理不受限制。允许其他非 root 用户名，不自动降权或创建用户，不提供 root 豁免开关。`--help` 已同步说明。测试通过内部显式传入有效 UID 的入口覆盖 root 和非 root 分支，无须实际更改系统身份。
 
 验证：`go test -race ./... -skip '^TestAdminSocketAndLock$'` 通过（仍跳过沙箱限制的本地 socket 测试）；`make vet`、`make build`、二进制帮助/版本检查和 `git diff --check` 通过。首次 vet 与竞争测试并行运行时误扫描到仓库 tmp/build 中的临时 Go 源码而失败，等待测试完成后单独重跑 vet 通过；后续针对 `./...` 的检查应顺序执行，避免该临时目录扫描冲突。未实际切换 root 身份或监听服务，UID 分支由自动测试覆盖；未创建系统用户、安装服务、移动运行文件或修改部署配置。
