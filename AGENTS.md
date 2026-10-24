@@ -32,6 +32,7 @@ Use bare action commands with double-dash options. Keep `--help` and `--version`
 ```
 
 Choose one action per invocation. Administration uses a restricted Unix socket, never Web management.
+Keep `--help` concise; put command details in `ACTION --help` (also `--help=ACTION`), and references in `--help=config|examples|limits|all`. Help must work without configuration, services or side effects, including root's `serve --help`. Validate all arguments before help output. Use distinct colors for headings, commands, options, arguments, descriptions and shell comments only on terminals, respecting `NO_COLOR` and `TERM=dumb`; keep redirects plain and do not start a pager automatically. Stripping ANSI must preserve the exact text; quoted hashes and URL fragments are not comments.
 
 Production deployments use a dedicated non-login system user, normally `filegate`; development may use the developer account. Keep binaries and configuration administrator-owned, content read-only to the service, and state/logs writable. Blacklist replacement requires write access to its parent directory; prefer `state/blacklist.txt` in deployments. Reject `serve` with effective UID 0 after argument validation and before configuration or side effects; other actions remain available to root. Do not auto-drop privileges or require a specific non-root username.
 

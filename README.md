@@ -139,7 +139,20 @@ NoNewPrivileges=true
 
 ## 命令行选项
 
-运行 `./tmp/filegate --help` 查看全部选项、默认值，以及初始化、使用默认中文目录、新增目录、编辑别名、发送 SIGHUP 和发码的完整示例。`--config` 默认使用当前工作目录的 `config.json`；省略 `--ttl` 时采用运行中服务的 `code_ttl`（初始化值为 `10m`），不是固定覆盖为 10 分钟。帮助中的配置默认值指 `init` 创建的新配置，不代表当前已修改的配置。
+`./tmp/filegate --help` 显示简短总览，按命令或主题查看详细帮助：
+
+```bash
+./tmp/filegate code --help        # 发码参数、默认值与示例
+./tmp/filegate serve --help       # 服务启动、信号与重载规则
+./tmp/filegate --help=config      # 配置默认值和路径规则
+./tmp/filegate --help=examples    # 完整教程，包括新增目录、重载和发码
+./tmp/filegate --help=limits      # 固定安全限制
+./tmp/filegate --help=all | less  # 全部帮助，按需分页或搜索
+```
+
+所有帮助均不读取配置或连接服务；也支持 `--help=code`、`--help code` 和 `code ab --help`。命令帮助可省略必填操作参数，错误选项和不合法的组合仍然报错。终端配色为：标题青色加粗、命令绿色、选项名及配置字段蓝色、参数值/占位符黄色、说明白色、示例 `#` 注释亮青色（不使用暗灰或淡化效果）；`--option=value` 的名称和值分别着色。URL 片段和引号内的 `#` 不作为注释。重定向/管道为纯文本，设置 `NO_COLOR`（包括空值）或 `TERM=dumb` 时关闭颜色。帮助颜色不受配置中的 `logging.color` 影响；程序不自动启动分页器。
+
+`--config` 默认使用当前工作目录的 `config.json`；省略 `--ttl` 时采用运行中服务的 `code_ttl`（初始化值为 `10m`），不是固定覆盖为 10 分钟。帮助中的配置默认值指 `init` 创建的新配置，不代表当前已修改的配置。
 
 每次选择一个操作，例如 `serve`、`code ab` 或 `status`；配置使用 `--config PATH`，访问码有效期使用 `--ttl 30m`，生成完整链接可使用 `--base-url http://服务器地址:17342`（仅用于 `code`）。选项可放在子命令及其参数之前、之间或之后，带值选项也支持 `--config=PATH` 和 `--ttl=30m`。重复选项、多个操作、缺失值和超出子命令要求的位置参数均会报错。
 

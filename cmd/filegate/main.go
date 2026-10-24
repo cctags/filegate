@@ -94,8 +94,7 @@ func runArgsWithEUID(args []string, output io.Writer, euid int) (returnErr error
 		return errors.New("refusing to serve as root; run as a dedicated non-root user (for example, sudo -u filegate filegate --config /srv/filegate/config.json serve)")
 	}
 	if opts.action.Action == "help" {
-		_, err := fmt.Fprint(output, usage)
-		return err
+		return writeHelp(output, opts.helpTopic)
 	}
 	if opts.action.Action == "version" {
 		_, err := fmt.Fprintln(output, versionInfo())

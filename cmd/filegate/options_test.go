@@ -56,7 +56,7 @@ func TestInvalidLongOptions(t *testing.T) {
 		{"code", "ab", "30m"}, {"code", "ab", "--ttl"}, {"--ttl", "30m", "status"},
 		{"code", "ab", "--ttl", "0s"}, {"code", "ab", "--ttl", "-1m"}, {"code", "ab", "--ttl", "invalid"},
 		{"--config"}, {"--config="}, {"--config", "a", "--config", "b", "serve"},
-		{"--version", "serve"}, {"--help", "serve"}, {"--version", "--help"}, {"--help=true"},
+		{"--version", "serve"}, {"--version", "--help"}, {"--help=true"},
 		{"--"}, {"--version", "unexpected"}, {"--ttl", "30m", "--version"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestHelpWithoutConfiguration(t *testing.T) {
 	if err := runArgs([]string{"--help", "--config", filepath.Join(t.TempDir(), "missing.json")}, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, text := range []string{"init", "serve", "--config PATH", "code ALIAS", "--ttl DURATION", "block IP_OR_CIDR", "--version"} {
+	for _, text := range []string{"init", "serve", "--config PATH", "code ALIAS", "filegate code --help", "block IP/CIDR", "--version"} {
 		if !strings.Contains(out.String(), text) {
 			t.Errorf("missing help for %s", text)
 		}
