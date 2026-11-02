@@ -155,3 +155,10 @@ No checklist entry counts as executed merely because it is documented.
 Real disk-full/fsync failure, power loss, cross-UID permissions and mobile
 browser behavior require separate controlled environments; do not change
 system users, fill disks or kill a real service as part of ordinary tests.
+
+Release dispatch regressions in `make test-release` also cover strict version
+tag resolution, annotated/lightweight tags, prereleases, missing tags,
+branch-name collisions and selecting a tag behind the workflow branch.
+Workflow wiring is linted with actionlint during release infrastructure work;
+actual GitHub dispatch registration, native arm64 execution and publication
+must be checked in the hosted repository.

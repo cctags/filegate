@@ -27,6 +27,17 @@ bash scripts/release-notes.sh v9.8.7 | grep -Fx 'Fixture release notes.'
 reject() {
     if "$@" > /dev/null 2>&1; then echo "Unexpected success: $*" >&2; exit 1; fi
 }
+# Dispatch resolves the requested tag even when the workflow branch is newer.
+release_commit=$(git rev-parse HEAD)
+test "$(bash scripts/resolve-release.sh v9.8.7)" = "$release_commit"
+git tag v9.8.7-rc.1
+test "$(bash scripts/resolve-release.sh v9.8.7-rc.1)" = "$release_commit"
+for invalid in '' ../bad v0.1 --help 'v9.8.7;echo bad' v09.8.7; do
+    reject bash scripts/resolve-release.sh "$invalid"
+done
+git branch v9.8.5
+reject bash scripts/resolve-release.sh v9.8.5
+reject bash scripts/resolve-release.sh v9.8.4
 reject bash scripts/validate-release.sh v0.1
 reject bash scripts/validate-release.sh '../bad'
 git tag v9.8.6
@@ -69,6 +80,8 @@ base=$(git rev-parse HEAD)
 printf '\nDocumentation edit.\n' >> README.md
 git add README.md
 git commit -qm 'docs: Exercise scope selection'
+test "$(bash scripts/resolve-release.sh v9.8.7)" = "$release_commit"
+test "$(git rev-parse HEAD)" != "$release_commit"
 scope=$(bash scripts/ci-scope.sh "$base")
 grep -Fx 'basic=false' <<< "$scope"
 printf '\n// Scope fixture.\n' >> internal/gate/config.go

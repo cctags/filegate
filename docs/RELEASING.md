@@ -28,11 +28,32 @@ git tag -a vX.Y.Z -m 'Filegate vX.Y.Z'
 git push origin vX.Y.Z
 ```
 
-推送标签只触发该标签提交已经包含的工作流；工作流没有追溯作用。仓库须允许 Actions，且发布任务的 `GITHUB_TOKEN` 允许 `contents: write`。这里不提供个人访问令牌或自动修改仓库设置。
+推送标签只触发该标签提交已经包含的工作流；工作流没有追溯作用。手动运行则使用所选维护分支的工作流定义，另行检出输入标签的源码。仓库须允许 Actions，且发布任务的 `GITHUB_TOKEN` 允许 `contents: write`。这里不提供个人访问令牌或自动修改仓库设置。
+
+## 手动编译并发布
+
+从 v0.2.2 起，Release 支持 `workflow_dispatch`。先将本版工作流推送到默认分支，否则页面不会出现手动运行按钮。操作者需要仓库写权限，目标版本标签也必须已经存在于 GitHub；此功能不创建或移动标签。
+
+1. 打开仓库 **Actions → Release → Run workflow**。
+2. 在 **Use workflow from** 选择包含本版发布流程的维护分支，通常是默认分支。
+3. 在 **tag** 输入目标标签，例如 `v0.2.2`，再点击 **Run workflow**。
+4. 等待完整测试、两个原生架构构建和发布全部成功，在 **Releases** 下载附件及 `SHA256SUMS`。
+
+也可使用 GitHub CLI（替换 OWNER/REPO 和实际维护分支）：
+
+```bash
+gh workflow run release.yml --repo OWNER/REPO --ref main -f tag=v0.2.2
+```
+
+所选分支提供工作流定义，`tag` 决定源码版本：先严格解析 `refs/tags/版本` 得到完整提交哈希，随后测试、打包和发布说明均检出该提交。不会将同名分支当作标签，标签缺失或格式不符会失败。目标源码须包含本流程所需的构建/校验脚本、独立 BUILDINFO 产物及对应带日期的 CHANGELOG 段落；旧发布流程不是自动迁移对象。发布前还核对远端标签指向，运行中标签被改动不会被悄悄接受。
+
+**已有同名 Release（含草稿）时仍拒绝覆盖。** 手动触发会重新验证/编译，但不能用来替换已发布 v0.2.1 的附件；新产物可在此次 Actions 的 artifacts 中查看，不能据此宣称已更新 Release。需要重新发布改动时使用新版本，勿删除原 Release 或移动标签来绕过检查。成功创建 Release 后立即公开，预发布标签会标记 prerelease；没有单独的发布确认按钮。
+
+手动触发与标签自动触发按目标版本串行执行，避免同时发布。失败后可以重跑，但已经创建的 Release 不会自动修复或覆盖，需先核对失败位置。
 
 ## 发布流水线
 
-`.github/workflows/release.yml` 在 `v*` 标签 push 时运行：
+`.github/workflows/release.yml` 在 `v*` 标签 push 或手动指定已有版本标签时运行：
 
 1. 检查版本格式、标签指向、干净工作区和对应 CHANGELOG 段落。
 2. 执行完整 Validate：竞态测试、vet、构建、打包回归、进程、Chrome 和四个 fuzz 各 30 秒。
@@ -46,7 +67,7 @@ git push origin vX.Y.Z
 
 归档继续采用文件白名单，不包含真实用户配置、内容、状态密钥、访问码、日志、TLS 私钥或浏览器资料；编入二进制的默认配置示例仍然存在。测试、校验、标签检查与 token 写权限范围不变，但取消了发布前最后一次人工确认。因此说明及包内文件需要在打标签前完成审核，发布后不能撤回他人已经下载的副本。Actions 中间产物仍是独立对象，不会因此取消它们原有的下载权限要求。
 
-新策略仅对包含本次工作流的新标签生效。修改默认分支或重跑旧标签任务不会使旧标签改用新文件；现有 v0.2.0 草稿仍须管理员核对附件后手工发布。不要移动旧标签，也不要通过重复创建同名 Release 强制补发。当前无论常规版本还是 prerelease，工作流都没有额外的人工发布闸门。
+自动触发的新策略仅对包含本次工作流的新标签生效。修改默认分支或重跑旧标签任务不会使旧标签改用新文件；显式手动运行可使用维护分支的工作流，但仍不覆盖已有 Release。现有 v0.2.0 草稿仍须管理员核对附件后手工发布。不要移动旧标签，也不要通过重复创建同名 Release 强制补发。当前无论常规版本还是 prerelease，工作流都没有额外的人工发布闸门。
 
 本次修订的 v0.2.1 起，每个 `.tar.gz` **恰好包含根目录下的一个可执行文件 `filegate`，没有外层版本目录或其他文件**。LICENSE 和 `filegate_VERSION_linux_ARCH.BUILDINFO` 为独立附件；使用或再分发二进制时请一并保留许可说明。用户/安全/部署文档及 systemd 单元从对应版本源码取得。用户明确要求将这次修改合并到本地 v0.2.1 提交并重新打标签；此前已发布的附件不会自动替换，本地重打标签也不会更新远端标签。对其他既有标签与资产仍保持不覆盖策略。
 
@@ -84,3 +105,5 @@ make dist VERSION=vX.Y.Z RELEASE_ARCH=arm64
 `make dist` 创建 `tmp/dist/` 下的单架构包及独立 BUILDINFO，不创建标签、Release 或上传文件，也不代替发布前测试；正式发布还附上对应提交的 LICENSE。可交叉编译；原生烟雾验证使用 `bash scripts/smoke-release.sh VERSION ARCH`，要求主机架构匹配。已有同名归档或 BUILDINFO 会拒绝覆盖，重新打包前只移除已核对的旧产物。`make test-release` 在独立临时 Git 仓库创建虚构标签，验证脏工作区、标签/CHANGELOG 不匹配、精确的单文件归档、独立元数据、原生烟雾和 CI 范围选择，不改变当前仓库标签。
 
 流程参考 GitHub 官方的 [复用工作流](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)、[runner 镜像清单](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) 和 [gh release create](https://cli.github.com/manual/gh_release_create)。本地验证不等于已在 GitHub 云端运行，首次接入后应检查真实 Actions 结果。
+
+手动操作依据 GitHub 官方的 [手动运行工作流](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow?tool=webui)。

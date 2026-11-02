@@ -384,6 +384,16 @@ package-release.sh 改为归档根目录下恰好一个 filegate 可执行文件
 
 本段为验证前快照：使用 amend 合并提交，随后在干净目标提交执行 make test、vet、build、test-release、test-integration、test-browser，四个 gate fuzz 各 30 秒及 actionlint；全部通过后才强制更新本地附注标签 v0.2.1，再构建检查版本元数据。新报告保存 tmp/v0.2.1-repack-validation.log 和 tmp/v0.2.1-repack-result.txt，实际结果和提交/标签以报告与 Git 为准。不把旧结果当作本次完整验证；arm64 原生、真实云端发布、Firefox 和目标部署仍需另行验收。保留原提交与标签对象信息供追溯，不改运行数据。
 
+### v0.2.2 手动发布入口（2026-11-02）
+
+用户要求实现 workflow_dispatch 并作为 v0.2.2。基线 562fa11，本地 v0.2.1 已在前次完整验证后指向该提交；本轮新增版本，不修改旧提交/标签或远端资产。先前重打标签的验证结果见 tmp/v0.2.1-repack-result.txt。
+
+Release 新增必填 tag 输入；metadata 使用严格版本格式和完整 refs/tags 路径解析提交，再检出目标源码验证 CHANGELOG/干净状态。version/commit 输出用于后续阶段，共用 Validate 增加可选完整 commit 输入；普通 CI 不传时仍检出原事件提交。发布测试、双架构打包和发布说明固定同一提交；自动/手动按版本共用并发组。保持仅 publish 有写权限、不创建/移动标签、不覆盖同名 Release/附件及远端标签核对。页面需工作流在默认分支且有仓库写权限，分支选择的是流程，tag 输入决定源码；旧目标必须具备本流程所需脚本和产物。本轮无替换附件开关。
+
+CHANGELOG 新增日期 2026-11-02 的 v0.2.2；README、发布操作、AGENTS 和测试指南同步。回归扩展标签解析、预发布、缺失/非法输入、同名分支及分支领先目标标签。按用户版本意图准备独立提交与本地附注标签：先完成相关检查，再在干净提交运行完整发布验证（test/vet/build/test-release/test-integration/test-browser、四个 fuzz 各 30 秒、actionlint），全部通过后才创建 v0.2.2，并重建核对版本。报告 tmp/v0.2.2-validation.log、tmp/v0.2.2-result.txt；实际结果以报告/Git 为准，失败不记为通过。不推送、联网触发或发布；arm64 原生、GitHub 手动按钮与真实发布、Firefox/目标部署均不由本机验证替代。临时数据只在 tmp，保留报告/缓存，不操作 demo 或主机部署。
+
+提交前检查：扩展后的 make test-release、actionlint 1.7.12（未安装 shellcheck）、Bash 语法及 git diff --check 通过。隔离 Git 夹具执行真实 metadata shell，确认分支领先时仍检出目标标签并输出完整 SHA，缺失/非法输入失败且不执行输入中的 shell 文本；同时核对后续阶段的提交传递、权限和并发组，报告 tmp/v0.2.2-dispatch-tests.log。夹具已清理；完整发布验证在提交后的干净树执行，结果另记上述报告。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

@@ -3,6 +3,10 @@ name: Validate
 on:
   workflow_call:
     inputs:
+      commit:
+        description: Optional full source commit for release validation
+        type: string
+        default: ''
       process:
         type: boolean
         default: false
@@ -25,6 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.commit || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -36,7 +41,13 @@ jobs:
         with:
           node-version: '24'
       - name: Verify prerequisites and clean sources
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
         run: |
+          if [[ -n "$EXPECTED_COMMIT" ]]; then
+            [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+            test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          fi
           test "$(id -u)" -ne 0
           test -z "$(git status --porcelain)"
           test -z "$(gofmt -l cmd internal)"
