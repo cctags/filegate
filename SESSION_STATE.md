@@ -362,6 +362,28 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 
 验证：actionlint 1.7.12、发布 Bash 语法、默认/发布权限检查和 git diff --check 通过；make test-release（含原生打包烟雾和 arm64 交叉编译）通过，日志 tmp/public-release-package-tests.log。隔离临时目录中用 mock gh 执行真实发布步骤的 shell：正式版不带 draft/prerelease，预发布仅带 prerelease，提交不匹配或校验失败时不调用 create；三个明确附件参数正确。mock 不联网、不使用真实 token，不实际发布。仅修改发布策略和文档，不重复 Go/进程/Chrome/fuzz；新策略真实云端验收需后续包含该变更的新标签。临时 mock 目录和打包夹具已自动清理，不修改 tmp/demo 或实际部署。用户随后要求提交，提交信息使用 `ci: Publish releases after successful validation`；本轮不转换已有远端草稿、不推送、不创建/移动标签。
 
+### v0.2.1 发布准备（2026-11-02）
+
+用户要求将 CHANGELOG 更新到 v0.2.1、提交并创建同名标签；本轮开始时 HEAD 为 0b8f47a，工作区干净，仅有 v0.1/v0.2.0 标签。新版本记录日期采用本次实际日期 2026-11-02，保留空 Unreleased，收录新标签自动公开 Release 的策略变更；旧版本记录保持原样。不新增程序行为或改动工作流，不沿用上次仅针对特定提交指定的历史时间戳。
+
+提交标题使用 `docs: Prepare release changelog`。本段为打标签前的提交快照：文档/日期/差异检查完成后先提交，在该干净目标提交上执行 make test/vet/build/test-release/test-integration/test-browser、四个 gate fuzz 各 30 秒及 actionlint，只有全部通过才创建本地附注标签 v0.2.1；失败或缺少前置条件时不打标签，不把跳过记为通过。验证日志保留 tmp/v0.2.1-validation.log，最终结果摘要为 tmp/v0.2.1-result.md；标签和实际 HEAD 必须从 Git 核对，不预写文档自身提交号。
+
+标签创建后执行真实版本校验、重新构建并检查 v0.2.1/modified:false；检查进程、profile、临时夹具/socket 清理。本轮不推送、不发布 GitHub Release，也不改动旧标签、tmp/demo 或主机部署。后续推送这个新标签会使用其包含的自动公开工作流；旧 v0.2.0 草稿保持原状态。真实云端发布和 arm64 原生执行、目标 systemd 与跨版本恢复不由本地验证替代。
+
+### 精简二进制发行归档（2026-11-02）
+
+用户希望 Releases 的两个架构压缩包只保留二进制。本轮基线为 5ff22e7（docs: Prepare release changelog），v0.2.1 指向该提交。已询问是否替换现有附件；目前按后续版本生效处理，不覆盖已发布 v0.2.1，不移动标签或操作远端。
+
+package-release.sh 改为归档根目录下恰好一个 filegate 可执行文件，去除外层版本目录和全部文档/元数据。每架构 BUILDINFO 独立生成，LICENSE 在汇总时从对应源码复制；工作流发布两个归档、两份 BUILDINFO、LICENSE 和覆盖前五个附件的 SHA256SUMS。保留已有产物拒绝覆盖、远端标签核对、校验和及最小写权限。smoke 和打包回归按新布局验证，README、发布指南、AGENTS、CHANGELOG Unreleased、测试指南及项目评估同步；部署与运维文档留在对应版本源码。
+
+验证：make test-release 通过，含 amd64 原生解包运行、arm64 交叉编译检查、单文件归档、独立元数据、已有归档/元数据拒绝覆盖及 CI 范围回归，日志 tmp/binary-only-package-tests.log。actionlint 1.7.12（本机未安装 shellcheck）、相关 Bash 语法及 git diff --check 通过。隔离目录用 mock gh 执行真实汇总/发布 shell，正式版、预发布、元数据损坏和缺失场景均符合预期，日志 tmp/binary-only-publish-tests.log；不联网或使用真实令牌。未修改 Go 代码，不重复应用/浏览器/fuzz 测试；未执行 arm64 原生或真实 GitHub 发布验收。本轮无提交、标签、推送或发布；测试夹具自动清理，未启动服务/浏览器，不修改 tmp/demo，保留报告和缓存。
+
+### 将打包修改合并至 v0.2.1（2026-11-02）
+
+用户随后明确要求把归档修改合并到刚才的提交，将 CHANGELOG 条目归入 v0.2.1，并在合并后的提交重新打上本地 v0.2.1 标签。这是对本次改写该提交/标签的明确授权，覆盖先前仅后续版本生效的范围；不授权推送、替换 GitHub 既有附件或移动其他标签。README、发布指南和项目评估同步本次修订版本的格式，保留远端已发布附件不会自动更新的说明。
+
+本段为验证前快照：使用 amend 合并提交，随后在干净目标提交执行 make test、vet、build、test-release、test-integration、test-browser，四个 gate fuzz 各 30 秒及 actionlint；全部通过后才强制更新本地附注标签 v0.2.1，再构建检查版本元数据。新报告保存 tmp/v0.2.1-repack-validation.log 和 tmp/v0.2.1-repack-result.txt，实际结果和提交/标签以报告与 Git 为准。不把旧结果当作本次完整验证；arm64 原生、真实云端发布、Firefox 和目标部署仍需另行验收。保留原提交与标签对象信息供追溯，不改运行数据。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

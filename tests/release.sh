@@ -44,19 +44,26 @@ bash scripts/package-release.sh v9.8.7 "$(go env GOHOSTARCH)"
 bash scripts/smoke-release.sh v9.8.7 "$(go env GOHOSTARCH)"
 archive="tmp/dist/filegate_v9.8.7_linux_$(go env GOHOSTARCH).tar.gz"
 tar -tzf "$archive" > tmp/archive-list.txt
-if grep -Eq '/(state|content|logs|tmp|\.git)/|/config.json$' tmp/archive-list.txt; then
-    echo 'Runtime data entered release archive' >&2
+if [[ $(cat tmp/archive-list.txt) != filegate ]]; then
+    echo 'Release archive must contain only the executable at its root' >&2
     exit 1
 fi
-tar -tzf "$archive" | grep -Fx "filegate_v9.8.7_linux_$(go env GOHOSTARCH)/BUILDINFO"
+buildinfo="tmp/dist/filegate_v9.8.7_linux_$(go env GOHOSTARCH).BUILDINFO"
+grep -Fx 'version: v9.8.7' "$buildinfo"
+grep -Fx "commit: $(git rev-parse HEAD)" "$buildinfo"
 reject bash scripts/package-release.sh v9.8.7 "$(go env GOHOSTARCH)"
+mv "$archive" tmp/native-archive.tar.gz
+reject bash scripts/package-release.sh v9.8.7 "$(go env GOHOSTARCH)"
+mv tmp/native-archive.tar.gz "$archive"
 # Compile the other supported architecture without claiming it was executed.
 other=arm64
 if [[ $(go env GOHOSTARCH) == arm64 ]]; then other=amd64; fi
 bash scripts/package-release.sh v9.8.7 "$other"
 mkdir tmp/cross
 tar -xzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz" -C tmp/cross
-go version -m "tmp/cross/filegate_v9.8.7_linux_${other}/filegate" | grep -F "GOARCH=$other"
+test "$(tar -tzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz")" = filegate
+go version -m tmp/cross/filegate | grep -F "GOARCH=$other"
+grep -Fx "platform: linux/$other" "tmp/dist/filegate_v9.8.7_linux_${other}.BUILDINFO"
 # ci-scope must distinguish documentation-only and application changes.
 base=$(git rev-parse HEAD)
 printf '\nDocumentation edit.\n' >> README.md

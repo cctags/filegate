@@ -51,6 +51,9 @@ tagged draft releases. Packaging regressions create tags only inside temporary
 Git fixtures; they do not tag, push or publish this repository. See
 [docs/RELEASING.md](../docs/RELEASING.md) for permissions, architecture smoke
 coverage, checksums, artifact retention and the remaining cloud-run validation.
+Archive regressions require exactly one root entry, `filegate`, for both
+architectures. BUILDINFO is checked separately; publishing attaches LICENSE
+and both metadata files, and SHA256SUMS covers them along with the tarballs.
 
 ## Choosing validation scope
 

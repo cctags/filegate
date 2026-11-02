@@ -9,8 +9,10 @@ test "$(go env GOHOSTOS)/$(go env GOHOSTARCH)" = "linux/$arch"
 mkdir -p tmp
 stage=$(mktemp -d "$PWD/tmp/release-smoke.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
-tar -xzf "tmp/dist/filegate_${version}_linux_${arch}.tar.gz" -C "$stage" --no-same-owner
-binary="$stage/filegate_${version}_linux_${arch}/filegate"
+archive="tmp/dist/filegate_${version}_linux_${arch}.tar.gz"
+test "$(tar -tzf "$archive")" = filegate
+tar -xzf "$archive" -C "$stage" --no-same-owner
+binary="$stage/filegate"
 output=$("$binary" --version)
 grep -Fx "filegate $version" <<< "$output"
 grep -Fx 'modified: false' <<< "$output"
