@@ -104,7 +104,7 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-  draft:
+  publish:
     needs: [metadata, assemble]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -115,7 +115,7 @@ jobs:
         with:
           name: release-bundle
           path: tmp/dist
-      - name: Create draft release without replacing existing assets
+      - name: Publish release without replacing existing assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -127,6 +127,6 @@ jobs:
           sha256sum --check SHA256SUMS
           flags=()
           if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$VERSION" --verify-tag --draft --title "Filegate $VERSION" \
+          gh release create "$VERSION" --verify-tag --title "Filegate $VERSION" \
             --notes-file RELEASE_NOTES.md "${flags[@]}" \
             "filegate_${VERSION}_linux_amd64.tar.gz" "filegate_${VERSION}_linux_arm64.tar.gz" SHA256SUMS

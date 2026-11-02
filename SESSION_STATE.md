@@ -354,6 +354,14 @@ README、SECURITY、systemd/发布指南、AGENTS、CHANGELOG 和项目评估同
 
 为保留用户未跟踪日志而满足发布工作树清洁要求，提交后使用 tmp/r020 的隔离 detached worktree 核对源文件摘要和 clean 状态，再新建标签、执行真实版本的 validate-release.sh、重新构建核对 v0.2.0/modified:false；隔离工作树由本轮创建并在完成后清理。版本元数据和本地标签结果以实际 Git 检查及最终答复为准，不把文档自身提交号预写入本段。云端 Release/arm64 原生任务由后续推送触发，本轮无远端验收；Firefox、目标 systemd 部署及跨版本恢复亦未补测。用户 error.txt 不忽略、不移动、不提交，未操作 tmp/demo。
 
+### 标签成功后自动公开 Release（2026-11-02）
+
+用户观察匿名访问时只能看到源码包而无二进制；当前 release.yml 使用 --draft，Actions 的构建产物与公开 Release 是不同对象。用户授权移除 --draft，并要求执行前先分析影响。本轮已先说明：公开仓库的陌生访客将可下载两架构归档及 SHA256SUMS，看到 CHANGELOG 发布说明和包内 BUILDINFO/用户、安全、部署文档；源码/文档本已公开，打包白名单不包含真实内容、配置、状态密钥、访问码、日志、TLS 私钥和浏览器资料。取消人工发布闸门，但测试、校验、远端标签核对及写权限范围保持不变；prerelease 同样可见，已下载副本不可撤回，私有仓库不会变公开。现有草稿不会自动发布，旧标签重跑仍用旧工作流，不移动旧标签。
+
+开始时工作区干净，交接时核对实际 HEAD 为 e8826e9（docs: Prepare release changelog），以 Git 为准，不沿用前次会话的旧提交号。release.yml 移除 gh release create 的 --draft，将最后任务/标题从 draft 改为 publish，仍仅该任务 contents:write；保留 verify-tag、远端提交比对、SHA256 校验、预发布标记及不覆盖同名 Release/资产的行为。README、AGENTS、发布指南、项目评估同步当前策略，在 CHANGELOG 的 Unreleased 记录变更，历史 v0.2.0 草稿策略条目保留原样。
+
+验证：actionlint 1.7.12、发布 Bash 语法、默认/发布权限检查和 git diff --check 通过；make test-release（含原生打包烟雾和 arm64 交叉编译）通过，日志 tmp/public-release-package-tests.log。隔离临时目录中用 mock gh 执行真实发布步骤的 shell：正式版不带 draft/prerelease，预发布仅带 prerelease，提交不匹配或校验失败时不调用 create；三个明确附件参数正确。mock 不联网、不使用真实 token，不实际发布。仅修改发布策略和文档，不重复 Go/进程/Chrome/fuzz；新策略真实云端验收需后续包含该变更的新标签。临时 mock 目录和打包夹具已自动清理，不修改 tmp/demo 或实际部署。用户随后要求提交，提交信息使用 `ci: Publish releases after successful validation`；本轮不转换已有远端草稿、不推送、不创建/移动标签。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
