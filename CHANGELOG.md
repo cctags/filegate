@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [v0.2.3] - 2026-11-03
+
 ### 新增
 
 - 新增 Linux riscv64 发行包，固定 `rva20u64` 指令集基线；在 GitHub amd64 runner 交叉编译，通过 QEMU 用户态验证后发布。amd64/arm64 仍使用原生验证，RISC-V 模拟测试不代表真实硬件/内核验收。

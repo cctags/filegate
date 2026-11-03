@@ -418,6 +418,14 @@ make test-release 始终检查三架构包、输出白名单、rva20u64（故意
 
 用户随后要求提交，本轮将上述 RISC-V 工作流、打包/烟雾脚本、运行回归与相关文档一起提交，标题为 `ci: Add Linux riscv64 releases with QEMU validation`。复用已完成且适用于未变化代码的验证结果，提交前重新检查差异；不推送、不打标签或发布。
 
+### v0.2.3 发布准备（2026-11-03）
+
+用户要求将 CHANGELOG 更新到 v0.2.3、提交并打同名标签。开始时 HEAD 为 03e7f3a，工作区干净，v0.2.3 不存在。将 Unreleased 的 RISC-V/QEMU 发布支持、扩展烟雾和三个精简附件条目归入日期 2026-11-03 的新版本，保留空 Unreleased，不改旧版本边界或程序行为。
+
+本段为验证前快照：提交标题 `docs: Prepare release changelog`，随后在干净目标提交执行 make test/vet/build/test-release/test-integration/test-browser、四个 gate fuzz 各 30 秒、actionlint；发布回归显式启用 FILEGATE_RELEASE_QEMU=1，使用已安装的 /usr/bin/qemu-riscv64-static，不能把未运行的模拟项当通过。全部通过才新建本地附注标签 v0.2.3，再执行真实版本校验和构建、检查 v0.2.3/modified:false。报告 tmp/v0.2.3-validation.log 和 tmp/v0.2.3-result.txt，实际提交、标签及检查结果以 Git 和报告为准，不把本段当作提前完成声明。arm64 本机只交叉编译，不替代 GitHub 原生 runner；真实云端、RISC-V 硬件/内核、Firefox 及主机部署验收仍未执行。
+
+本轮不推送、不创建 GitHub Release、不移动旧标签或替换已发布资产。测试使用独立 tmp 资源，结束时检查服务/Go/Node/Chrome/QEMU 子进程与临时夹具清理，保留报告/缓存，不操作 tmp/demo 或实际部署。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
