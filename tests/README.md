@@ -13,7 +13,8 @@ make test              # race detector; includes Unix socket tests
 make vet
 make test-integration  # build a temporary binary; real processes and IPv4/TLS
 make test-browser      # build tmp/filegate; Node 20+ and google-chrome
-make test-release      # isolated Git fixture; release guards and package checks
+make test-release      # Node 20+, local listeners; package and native runtime checks
+FILEGATE_RELEASE_QEMU=1 QEMU_RISCV64=qemu-riscv64 make test-release
 CHROME_BIN=/usr/bin/chromium make test-browser
 make fuzz FUZZ=FuzzAccessAlias FUZZTIME=10s
 ```
@@ -51,10 +52,27 @@ tagged or manually dispatched public releases. Packaging regressions create tags
 Git fixtures; they do not tag, push or publish this repository. See
 [docs/RELEASING.md](../docs/RELEASING.md) for permissions, architecture smoke
 coverage, checksums, artifact retention and the remaining cloud-run validation.
-Archive regressions require exactly one root entry, `filegate`, for both
-architectures. Local packaging must produce only the two architecture
+Archive regressions require exactly one root entry, `filegate`, for all three
+architectures. Local packaging must produce only the three architecture
 tarballs, with no BUILDINFO, LICENSE or SHA256SUMS sidecars. The workflow
 keeps checksums in its internal Actions bundle, without publishing them.
+
+Release smoke uses `tests/release-runtime.cjs` (Node built-ins only) to execute
+CLI/admin/HTTP requests, code consumption, directory/symlink isolation,
+SIGHUP mapping revocation and graceful stop/restart with persisted codes and
+blacklist. It uses short temporary paths for Unix sockets, joins child
+processes and suppresses credential-bearing output on failure.
+
+The hosted release uses native amd64/arm64 runners and an amd64 runner with
+`qemu-user` for riscv64. QEMU is a development/CI dependency, never a packaged
+runtime dependency. `make test-release` always cross-compiles all three targets;
+`FILEGATE_RELEASE_QEMU=1` additionally requires the QEMU smoke instead of
+silently skipping when the emulator is missing. Set `QEMU_RISCV64` to an explicit
+executable path if needed (for example `/usr/bin/qemu-riscv64-static`).
+Release publication always requires that emulated run. Ordinary CI retains the
+native runtime check without requiring QEMU installation. Emulation does not
+validate a real RISC-V kernel, hardware or performance; record native acceptance
+separately. Only `rva20u64` is promised, regardless of developer profile settings.
 
 ## Choosing validation scope
 

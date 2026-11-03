@@ -404,6 +404,20 @@ package-release.sh 不再生成 BUILDINFO，只产出每架构单文件归档。
 
 用户随后要求提交，本轮将上述工作流、脚本、回归及文档一并提交，标题为 `ci: Limit release assets to binary archives`。复用已完成且适用于未变化代码的检查结果，提交前重新检查差异；不推送、不打标签或删除远端附件。
 
+### Linux riscv64 预编译与 QEMU 验证（2026-11-03）
+
+用户确认采用 GitHub amd64 runner 交叉编译并用 QEMU 用户态验证，作为对原生烟雾规则的 RISC-V 明确例外。本轮基线 c527686，工作区起始干净；不提交、不创建/移动标签、不推送/发布，也不替换已有 Release。之前可行性样品在 tmp/riscv-review，仅用于初步检查，不作为正式发行物或完整验证结果。
+
+package-release.sh 新增 riscv64 并固定 GORISCV64=rva20u64，避免继承开发环境更新的 CPU profile。Release matrix 保留 amd64/arm64 原生 runner，新增 ubuntu-24.04 上的 riscv64 qemu 模式，经 Ubuntu 软件源安装 qemu-user，不注册 binfmt、不打包模拟器。三个构建均显式运行 smoke；发布汇总/内部校验和/最终附件白名单扩展为三个 tar.gz，每个仍只有根目录 filegate，不附带 BUILDINFO、LICENSE 或 SHA256SUMS。测试/构建仍只读，仅 publish 可写；手动发布的版本/提交绑定与同名 Release 拒绝覆盖不变，旧标签源码不支持三架构时应失败而非生成不同源码的包。
+
+smoke-release.sh 支持默认 native 与显式 riscv64 qemu，缺工具或执行失败即失败。新增 tests/release-runtime.cjs，用 Node 内置模块运行实际包内程序：CLI 管理发码/封禁、一次性登录、文件/符号链接/父目录隔离、重载映射与撤销旧会话/码、新目录授权、正常退出、重启后未消费码/黑名单恢复与已消费码/会话不复活。请求、轮询、CLI、停止有界并等待子进程，失败只显示固定阶段标签，不打印凭据或原始输出。测试的短随机 smoke 目录放在仓库 tmp，夹具从原始仓库 tmp 分配，避免叠加 fixture 路径超过 Unix socket 限制。因为发布回归现需 Node，validate.yml 的 setup-node 不再仅在浏览器/full 时启用，Go 产品仍无新增依赖。
+
+make test-release 始终检查三架构包、输出白名单、rva20u64（故意从外部传入 rva23u64 验证覆盖）、本机原生 smoke 以及错误架构/模式/缺失或失败模拟器；FILEGATE_RELEASE_QEMU=1 显式要求额外 RISC-V 运行。发布 matrix 始终要求 QEMU；普通 CI 不自动安装模拟器，不能把未运行模拟项计为通过。README、CHANGELOG Unreleased、AGENTS、发布指南、测试指南和项目评估同步范围/依赖与边界。
+
+验证：以非 root、Go 1.27.3 和本机 qemu-riscv64-static 6.2.0，在沙箱外执行 FILEGATE_RELEASE_QEMU=1 QEMU_RISCV64=/usr/bin/qemu-riscv64-static make test-release，最终通过；amd64 原生与 riscv64 模拟的完整 smoke 均通过，arm64 仅交叉编译检查，报告 tmp/riscv-release-tests.log。actionlint 1.7.12（shellcheck 未安装）、Node/Bash 语法与 git diff --check 通过。隔离夹具执行真实 assemble/publish shell，模拟正式版/预发布只上传三个包，缺 riscv64 包、校验后损坏、远端标签提交变化时在发布前失败，并核对 matrix、权限、模拟器安装和模式传递，报告 tmp/riscv-release-workflow-tests.log。无真实 API/token；未验证 GitHub Ubuntu 24.04 的实际安装/运行、原生 arm64/RISC-V、目标内核/硬件/性能或部署。Go 业务代码未变且无标签操作，不重复全套应用竞态/浏览器/fuzz。沙箱外只读进程检查无测试 filegate/Go/Node/QEMU 子进程，临时 rs/release-test/package/工作流夹具已清理，保留报告/缓存与初步样品；未操作 tmp/demo/真实部署。
+
+用户随后要求提交，本轮将上述 RISC-V 工作流、打包/烟雾脚本、运行回归与相关文档一起提交，标题为 `ci: Add Linux riscv64 releases with QEMU validation`。复用已完成且适用于未变化代码的验证结果，提交前重新检查差异；不推送、不打标签或发布。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

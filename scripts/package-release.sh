@@ -4,12 +4,14 @@ umask 022
 cd "$(dirname "$0")/.."
 version=${1:-}
 arch=${2:-}
-case "$arch" in amd64|arm64) ;; *) echo 'Architecture must be amd64 or arm64' >&2; exit 1 ;; esac
+case "$arch" in amd64|arm64|riscv64) ;; *) echo 'Architecture must be amd64, arm64 or riscv64' >&2; exit 1 ;; esac
 bash scripts/validate-release.sh "$version"
 mkdir -p tmp/dist tmp/build tmp/go-cache tmp/test-tmp
 export TMPDIR="$PWD/tmp/test-tmp" GOTMPDIR="$PWD/tmp/build"
 export GOCACHE="${GOCACHE:-$PWD/tmp/go-cache}"
 export GOTOOLCHAIN=local
+# Pin the baseline rather than inherit a newer developer CPU profile.
+export GORISCV64=rva20u64
 name="filegate_${version}_linux_${arch}"
 archive="$PWD/tmp/dist/$name.tar.gz"
 if [[ -e "$archive" ]]; then

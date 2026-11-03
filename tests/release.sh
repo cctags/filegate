@@ -11,6 +11,7 @@ for file in cmd internal scripts deploy docs tests Makefile go.mod .gitignore \
     cp -R "$file" "$fixture/"
 done
 cd "$fixture"
+export FILEGATE_RELEASE_TMP_ROOT="$root/tmp"
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 git init -q
 git config user.name 'Filegate release tests'
@@ -61,16 +62,30 @@ if [[ $(cat tmp/archive-list.txt) != filegate ]]; then
 fi
 test "$(find tmp/dist -maxdepth 1 -type f -printf '%f\n')" = "$(basename "$archive")"
 reject bash scripts/package-release.sh v9.8.7 "$(go env GOHOSTARCH)"
-# Compile the other supported architecture without claiming it was executed.
-other=arm64
-if [[ $(go env GOHOSTARCH) == arm64 ]]; then other=amd64; fi
-bash scripts/package-release.sh v9.8.7 "$other"
-mkdir tmp/cross
-tar -xzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz" -C tmp/cross
-test "$(tar -tzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz")" = filegate
-go version -m tmp/cross/filegate | grep -F "GOARCH=$other"
-test "$(find tmp/dist -maxdepth 1 -type f | wc -l)" -eq 2
+# Cross-compile every other target without claiming native execution.
+for other in amd64 arm64 riscv64; do
+    if [[ $(go env GOHOSTARCH) == "$other" ]]; then continue; fi
+    GORISCV64=rva23u64 bash scripts/package-release.sh v9.8.7 "$other"
+    mkdir -p "tmp/cross/$other"
+    tar -xzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz" -C "tmp/cross/$other"
+    test "$(tar -tzf "tmp/dist/filegate_v9.8.7_linux_${other}.tar.gz")" = filegate
+    go version -m "tmp/cross/$other/filegate" | grep -F "GOARCH=$other"
+done
+mkdir -p tmp/riscv
+tar -xzf tmp/dist/filegate_v9.8.7_linux_riscv64.tar.gz -C tmp/riscv
+go version -m tmp/riscv/filegate | grep -F 'GORISCV64=rva20u64'
+test "$(find tmp/dist -maxdepth 1 -type f | wc -l)" -eq 3
 test -z "$(find tmp/dist -maxdepth 1 -type f ! -name '*.tar.gz' -print)"
+reject bash scripts/package-release.sh v9.8.7 riscv32
+reject bash scripts/smoke-release.sh v9.8.7 amd64 qemu
+reject bash scripts/smoke-release.sh v9.8.7 riscv64 invalid
+reject env QEMU_RISCV64=false bash scripts/smoke-release.sh v9.8.7 riscv64 qemu
+reject env QEMU_RISCV64="$root/tmp/missing-qemu" bash scripts/smoke-release.sh v9.8.7 riscv64 qemu
+if [[ ${FILEGATE_RELEASE_QEMU:-0} == 1 ]]; then
+    bash scripts/smoke-release.sh v9.8.7 riscv64 qemu
+else
+    echo 'RISC-V cross compilation passed; optional QEMU runtime not requested.'
+fi
 # ci-scope must distinguish documentation-only and application changes.
 base=$(git rev-parse HEAD)
 printf '\nDocumentation edit.\n' >> README.md

@@ -4,9 +4,11 @@
 
 功能变化、版本范围和升级注意事项见 [CHANGELOG.md](CHANGELOG.md)。
 
-自动检查、Linux amd64/arm64 发行包、版本发布流程见 [CI 与版本发布](docs/RELEASING.md)。包含最新工作流的新标签在完整验证和构建成功后自动发布，公开仓库的访客可直接下载附件；旧标签生成的草稿仍需管理员发布。从 v0.2.2 起，也可在 Actions → Release → Run workflow 填写已有标签手动编译并发布，已有同名 Release 不覆盖；工作流须先进入默认分支。当前发行物请以实际仓库 Releases 页面为准。
+自动检查、Linux amd64/arm64/riscv64 发行包、版本发布流程见 [CI 与版本发布](docs/RELEASING.md)。包含最新工作流的新标签在完整验证和构建成功后自动发布，公开仓库的访客可直接下载附件；旧标签生成的草稿仍需管理员发布。从 v0.2.2 起，也可在 Actions → Release → Run workflow 填写已有标签手动编译并发布，已有同名 Release 不覆盖；工作流须先进入默认分支。当前发行物请以实际仓库 Releases 页面为准。
 
-后续发布仅上传 Linux amd64/arm64 两个 `.tar.gz`，每个包仅包含根目录下的 `filegate` 可执行文件；不附带 BUILDINFO、LICENSE 或 SHA256SUMS。许可证、文档和 systemd 单元从源码仓库获取；校验和仅用于 Actions 内部验证。此前已发布的附件不会因本地提交和标签更新而自动替换。
+后续发布仅上传 Linux amd64/arm64/riscv64 三个 `.tar.gz`，每个包仅包含根目录下的 `filegate` 可执行文件；不附带 BUILDINFO、LICENSE 或 SHA256SUMS。许可证、文档和 systemd 单元从源码仓库获取；校验和仅用于 Actions 内部验证。此前已发布的附件不会因本地提交和标签更新而自动替换。
+
+RISC-V 包面向 `linux/riscv64`、`rva20u64` 指令集基线，采用交叉编译和 QEMU 用户态验证；amd64/arm64 保留原生验证。QEMU 结果不代表已在真实 RISC-V 硬件或内核上验收。
 
 现有部署的停服备份、升级/回退和隔离恢复步骤见 [运维指南](docs/OPERATIONS.md)。恢复旧状态时先保持 Web 全封禁并撤销旧码，再重新开放访问。
 

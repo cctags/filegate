@@ -5,9 +5,14 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 新增 Linux riscv64 发行包，固定 `rva20u64` 指令集基线；在 GitHub amd64 runner 交叉编译，通过 QEMU 用户态验证后发布。amd64/arm64 仍使用原生验证，RISC-V 模拟测试不代表真实硬件/内核验收。
+- 发布烟雾测试扩展到实际解包程序的发码/登录、文件与符号链接隔离、管理封禁、重载映射与撤销、正常停止、重启后访问码/黑名单持久化及会话失效；测试失败阻止发布。
+
 ### 调整
 
-- Release 自定义附件精简为 Linux amd64/arm64 两个二进制压缩包，不再生成 BUILDINFO 或附带 LICENSE、SHA256SUMS；流水线仍在 Actions 内部生成并验证校验和。许可证保留在源码仓库，已发布附件不自动修改。
+- Release 自定义附件精简为 Linux amd64/arm64/riscv64 三个二进制压缩包，不再生成 BUILDINFO 或附带 LICENSE、SHA256SUMS；流水线仍在 Actions 内部生成并验证校验和。许可证保留在源码仓库，已发布附件不自动修改。
 
 ## [v0.2.2] - 2026-11-02
 
