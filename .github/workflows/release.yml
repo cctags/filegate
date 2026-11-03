@@ -80,9 +80,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-${{ matrix.arch }}
-          path: |
-            tmp/dist/*.tar.gz
-            tmp/dist/*.BUILDINFO
+          path: tmp/dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -107,12 +105,10 @@ jobs:
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           bash scripts/release-notes.sh "$VERSION" > tmp/dist/RELEASE_NOTES.md
-          test -f LICENSE && test ! -L LICENSE
-          install -m 0644 LICENSE tmp/dist/LICENSE
           cd tmp/dist
           test "$(find . -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 2
-          sha256sum "filegate_${VERSION}_linux_amd64.tar.gz" "filegate_${VERSION}_linux_arm64.tar.gz" \
-            "filegate_${VERSION}_linux_amd64.BUILDINFO" "filegate_${VERSION}_linux_arm64.BUILDINFO" LICENSE > SHA256SUMS
+          # Keep checksums internal to Actions; publish only the two archives.
+          sha256sum "filegate_${VERSION}_linux_amd64.tar.gz" "filegate_${VERSION}_linux_arm64.tar.gz" > SHA256SUMS
           sha256sum --check SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -147,5 +143,4 @@ jobs:
           if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$VERSION" --verify-tag --title "Filegate $VERSION" \
             --notes-file RELEASE_NOTES.md "${flags[@]}" \
-            "filegate_${VERSION}_linux_amd64.tar.gz" "filegate_${VERSION}_linux_arm64.tar.gz" \
-            "filegate_${VERSION}_linux_amd64.BUILDINFO" "filegate_${VERSION}_linux_arm64.BUILDINFO" LICENSE SHA256SUMS
+            "filegate_${VERSION}_linux_amd64.tar.gz" "filegate_${VERSION}_linux_arm64.tar.gz"

@@ -47,13 +47,14 @@ successful and failed checks, including missing initial state/log directories,
 Chinese mappings, symlinks, FIFOs, unreadable files and invalid state/TLS pairs.
 
 GitHub Actions runs scoped CI and a reusable full validation workflow before
-tagged draft releases. Packaging regressions create tags only inside temporary
+tagged or manually dispatched public releases. Packaging regressions create tags only inside temporary
 Git fixtures; they do not tag, push or publish this repository. See
 [docs/RELEASING.md](../docs/RELEASING.md) for permissions, architecture smoke
 coverage, checksums, artifact retention and the remaining cloud-run validation.
 Archive regressions require exactly one root entry, `filegate`, for both
-architectures. BUILDINFO is checked separately; publishing attaches LICENSE
-and both metadata files, and SHA256SUMS covers them along with the tarballs.
+architectures. Local packaging must produce only the two architecture
+tarballs, with no BUILDINFO, LICENSE or SHA256SUMS sidecars. The workflow
+keeps checksums in its internal Actions bundle, without publishing them.
 
 ## Choosing validation scope
 

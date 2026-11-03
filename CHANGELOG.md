@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### 调整
+
+- Release 自定义附件精简为 Linux amd64/arm64 两个二进制压缩包，不再生成 BUILDINFO 或附带 LICENSE、SHA256SUMS；流水线仍在 Actions 内部生成并验证校验和。许可证保留在源码仓库，已发布附件不自动修改。
+
 ## [v0.2.2] - 2026-11-02
 
 ### 新增

@@ -394,6 +394,16 @@ CHANGELOG 新增日期 2026-11-02 的 v0.2.2；README、发布操作、AGENTS �
 
 提交前检查：扩展后的 make test-release、actionlint 1.7.12（未安装 shellcheck）、Bash 语法及 git diff --check 通过。隔离 Git 夹具执行真实 metadata shell，确认分支领先时仍检出目标标签并输出完整 SHA，缺失/非法输入失败且不执行输入中的 shell 文本；同时核对后续阶段的提交传递、权限和并发组，报告 tmp/v0.2.2-dispatch-tests.log。夹具已清理；完整发布验证在提交后的干净树执行，结果另记上述报告。
 
+### 精简 Release 附件列表（2026-11-03）
+
+用户报告 v0.2.2 Release 中有两份 BUILDINFO、两个归档、LICENSE、SHA256SUMS 和源码包，要求移除前三类额外文件。基线 05085b6，开始时工作区干净；本轮修改后续发布策略，不联网删除现有资产，不创建/移动标签、不提交或发布。
+
+package-release.sh 不再生成 BUILDINFO，只产出每架构单文件归档。Release 构建中间产物只上传 tar.gz，汇总不再复制 LICENSE；SHA256SUMS 仅在 Actions 的 release-bundle 内生成/验证以保持内部产物传递检查。最终 gh release create 明确只上传 amd64/arm64 两个 tar.gz，不附带 BUILDINFO、LICENSE、SHA256SUMS 或发布说明文件。源码 LICENSE 保留，压缩包仍只有根目录 filegate，不改实际文件服务行为、只读/写权限、标签绑定及同名 Release 不覆盖规则。旧附件不随工作流修改自动清除，未修改历史 CHANGELOG，新增 Unreleased 条目；README、AGENTS、发布指南、项目评估和测试说明同步，不再指导下载不存在的校验附件。
+
+验证：make test-release 通过，包括 amd64 原生烟雾、arm64 交叉编译、两架构精确归档和输出目录仅两个压缩包，无额外元数据/许可/校验文件，日志 tmp/minimal-release-package-tests.log。actionlint 1.7.12（shellcheck 未安装）、相关 Bash 语法、git diff --check 通过。隔离 Git 夹具执行实际 assemble/publish shell，用 mock gh 验证正式版/预发布仅上传两个压缩包，缺包、汇总后内容损坏、远端标签提交不符时均在发布前失败，日志 tmp/minimal-release-workflow-tests.log；无网络或真实令牌。未改 Go 代码且未打标签，不重复竞态/进程/Chrome/fuzz；未验收 arm64 原生或真实云端发布。测试夹具已自动清理，本轮未启动服务或浏览器，保留报告与缓存，不操作 tmp/demo/真实部署。
+
+用户随后要求提交，本轮将上述工作流、脚本、回归及文档一并提交，标题为 `ci: Limit release assets to binary archives`。复用已完成且适用于未变化代码的检查结果，提交前重新检查差异；不推送、不打标签或删除远端附件。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
