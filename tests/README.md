@@ -41,6 +41,14 @@ The process suite checks CLI administration, Chinese files, valid and rejected
 SIGHUP reloads, SIGTERM/SIGINT, persistent consumption and unblocking, restart,
 second instances, occupied ports, unavailable logging, invalid certificates,
 and TLS/HTTP2 using certificate files and a test trust store.
+Each fixture owns its HTTP transport and closes idle client connections before
+stopping the server. The stop helper waits at most 12 seconds, covering the
+server's 10-second shutdown budget plus scheduling overhead; it still requires
+successful exit and a shutdown log, and kills/joins a child on timeout.
+A partial-request-header regression holds a connection through the 5-second
+read-header timeout, so the helper cannot incorrectly impose a shorter grace
+period. It synchronizes acceptance using a later independent HTTP request,
+without fixed sleeps. See Go's [Shutdown contract](https://pkg.go.dev/net/http#Server.Shutdown).
 It also runs `check` before startup, while the server holds its locks and after
 TLS configuration, and checks exit status for invalid deployment files. The
 regular CLI suite snapshots file contents, modes and modification times on

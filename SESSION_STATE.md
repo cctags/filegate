@@ -426,6 +426,18 @@ make test-release 始终检查三架构包、输出白名单、rva20u64（故意
 
 本轮不推送、不创建 GitHub Release、不移动旧标签或替换已发布资产。测试使用独立 tmp 资源，结束时检查服务/Go/Node/Chrome/QEMU 子进程与临时夹具清理，保留报告/缓存，不操作 tmp/demo 或实际部署。
 
+### CI 进程停机测试超时修复（2026-11-03）
+
+用户已推送 v0.2.3，提供未跟踪 error.txt：make test-integration 中 TestProcessLifecycle 在 process_test.go:342 停机调用报告 process did not exit promptly。本轮基线 4eece5f，除用户日志外初始工作区干净；不提交、不推送、不移动 v0.2.3 或其他标签、不修改远端附件，保留 error.txt 不跟踪、不覆盖。
+
+定位到测试 childProcess.stop 仅等待 5 秒，而生产服务 Shutdown 最多 10 秒、ReadHeaderTimeout 为 5 秒；Go net/http 对 StateNew/未完成请求头连接的清理和 Shutdown 轮询可能越过 5 秒。日志没有连接细节，不能确定原 CI 当时的具体连接；但新增 TestProcessShutdownWithPendingHeaders 可稳定触发同样错误：保留半请求头，通过后续独立连接完成 HTTP 请求确认 accept 顺序，无固定 sleep，旧逻辑约 5.95 秒失败（tmp/shutdown-before-fix.log）。
+
+修复仅测试设施：停机等待改为 12 秒，覆盖生产 10 秒预算及调度余量；每个进程夹具 clone 独立 HTTP Transport，在停止前及清理时关闭空闲客户端连接，避免共享默认池。保持非零退出/缺少正常停机日志即失败，超时仍 kill 并等待回收；半请求头回归使用独立关闭 keep-alive 的探针，原始连接保持到停机结束。服务端代码、HTTP 超时、信号处理与发布流程不改。CHANGELOG Unreleased、AGENTS、测试指南同步；README 无运行行为变化无需修改。原测试引入提交为 84896d24721cdb32bd3b8e02f49363626f3c6c37（test: Expand regression and integration coverage），若后续提交修复可使用该事实添加 Fixes trailer。
+
+验证：沙箱外、非 root，新增回归带竞态重复 3 次通过（约 5.95/6.02/5.96 秒，tmp/shutdown-after-fix.log）；make test 全部竞态、make vet、make test-integration（含新回归）、原 TestProcessLifecycle 带竞态重复 5 次均通过，日志 tmp/shutdown-validation.log。gofmt 和 git diff --check 通过。未改产品/发布脚本，未打标签，不重复浏览器/QEMU/发行打包/fuzz；实际 GitHub 重跑仍待推送后验收，未把本地通过当云端已修复。参考本机 Go 1.27.3 net/http 源码及官方 Shutdown 文档。沙箱外检查无测试 filegate/Go/Node/QEMU 子进程，无遗留 process-* 夹具；保留报告/缓存，不操作 tmp/demo 或真实部署。
+
+用户随后要求提交，本轮将测试修复、回归及相关文档一起提交，标题为 `test: Respect the server shutdown grace period`，添加已核实的原测试引入提交 Fixes trailer。复用未变化代码的既有检查结果，提交前重新检查差异；不推送、不打标签或发布。提交前状态中 error.txt 已不再列出，本轮未删除、忽略或提交该用户文件。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：

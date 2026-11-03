@@ -32,11 +32,16 @@ type processFixture struct {
 	cfg                  gate.Config
 	client               *http.Client
 }
+
+// Allow the 10-second server shutdown budget plus process scheduling overhead.
+const processStopTimeout = 12 * time.Second
+
 type childProcess struct {
-	cmd  *exec.Cmd
-	done chan struct{}
-	err  error
-	log  string
+	client *http.Client
+	cmd    *exec.Cmd
+	done   chan struct{}
+	err    error
+	log    string
 }
 
 func processFixtureForTest(t *testing.T) *processFixture {
@@ -61,7 +66,9 @@ func processFixtureForTest(t *testing.T) *processFixture {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v %s", err, out)
 	}
-	f := &processFixture{binary: binary, config: filepath.Join(base, "config.json"), base: base, client: &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	f := &processFixture{binary: binary, config: filepath.Join(base, "config.json"), base: base, client: &http.Client{Transport: transport, Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	t.Cleanup(f.client.CloseIdleConnections)
 	f.command(t, "init")
 	var err error
 	f.cfg, err = gate.Load(f.config)
@@ -148,7 +155,7 @@ func (f *processFixture) start(t *testing.T) *childProcess {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &childProcess{cmd: exec.Command(f.binary, "--config", f.config, "serve"), done: make(chan struct{}), log: log.Name()}
+	p := &childProcess{client: f.client, cmd: exec.Command(f.binary, "--config", f.config, "serve"), done: make(chan struct{}), log: log.Name()}
 	p.cmd.Stdout, p.cmd.Stderr = log, log
 	if err := p.cmd.Start(); err != nil {
 		log.Close()
@@ -181,6 +188,9 @@ func (f *processFixture) start(t *testing.T) *childProcess {
 }
 func (p *childProcess) stop(t *testing.T, sig os.Signal) {
 	t.Helper()
+	p.client.CloseIdleConnections()
+	timer := time.NewTimer(processStopTimeout)
+	defer timer.Stop()
 	if err := p.cmd.Process.Signal(sig); err != nil {
 		t.Fatal(err)
 	}
@@ -189,10 +199,10 @@ func (p *childProcess) stop(t *testing.T, sig os.Signal) {
 		if p.err != nil {
 			t.Fatalf("process exit: %v", p.err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-timer.C:
 		p.cmd.Process.Kill()
 		<-p.done
-		t.Fatal("process did not exit promptly")
+		t.Fatalf("process did not exit within %s", processStopTimeout)
 	}
 	data, err := os.ReadFile(p.log)
 	if err != nil || !bytes.Contains(data, []byte("filegate stopped")) {
@@ -340,6 +350,34 @@ func TestProcessLifecycle(t *testing.T) {
 		t.Fatal("unblock did not survive restart")
 	}
 	p.stop(t, os.Interrupt)
+}
+
+// Keep an incomplete request alive until ReadHeaderTimeout expires. The
+// shutdown helper must allow the server's grace period and polling overhead.
+func TestProcessShutdownWithPendingHeaders(t *testing.T) {
+	f := processFixtureForTest(t)
+	transport := &http.Transport{DisableKeepAlives: true}
+	t.Cleanup(transport.CloseIdleConnections)
+	f.client.Transport = transport
+	p := f.start(t)
+	conn, err := net.DialTimeout("tcp4", f.cfg.Listen, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(conn, "GET / HTTP/1.1\r\nHost: localhost\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	// A later, independent connection completes a request, ensuring the accept
+	// loop has passed the pending connection without relying on a sleep.
+	res, _ := f.request(t, "GET", "/", "", nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatal("shutdown probe failed")
+	}
+	p.stop(t, syscall.SIGTERM)
 }
 
 func testCertificateFiles(t *testing.T, base string) (string, string, *x509.CertPool) {
