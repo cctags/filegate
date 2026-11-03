@@ -438,6 +438,14 @@ make test-release 始终检查三架构包、输出白名单、rva20u64（故意
 
 用户随后要求提交，本轮将测试修复、回归及相关文档一起提交，标题为 `test: Respect the server shutdown grace period`，添加已核实的原测试引入提交 Fixes trailer。复用未变化代码的既有检查结果，提交前重新检查差异；不推送、不打标签或发布。提交前状态中 error.txt 已不再列出，本轮未删除、忽略或提交该用户文件。
 
+### v0.2.4 发布准备（2026-11-03）
+
+用户要求按以往流程生成 v0.2.4：更新 CHANGELOG、提交、全套发布验证、新建本地附注标签。开始时 HEAD 为 38bc88a，跟踪文件干净，v0.2.4 不存在；存在用户未跟踪的 0001-test-Respect-the-server-shutdown-grace-period.patch，保留原位、不忽略、不提交或删除。将 Unreleased 的进程停机等待/独立连接池及半请求头回归归入日期 2026-11-03 的新版本，保留空 Unreleased，不修改产品行为、旧版本或现有标签。
+
+本段为验证前快照：提交标题 `docs: Prepare release changelog`，在仓库 tmp 下创建该提交的独立 detached worktree，以保持实际发布目标干净且保留用户补丁。在该树执行 make test/vet/build/test-release/test-integration/test-browser、四个 gate fuzz 各 30 秒及 actionlint；发行回归显式启用 RISC-V QEMU，复用原仓库 Go 缓存。全部通过才创建本地 v0.2.4 标签，再执行真实版本校验和构建，核对 v0.2.4/modified:false，并将已验证构建复制到原仓库 tmp/filegate。报告 tmp/v0.2.4-validation.log、tmp/v0.2.4-result.txt；实际结果及提交/标签以报告和 Git 为准，本段不提前宣称通过。arm64 本机仅交叉编译，不替代云端原生验收；实际 GitHub 发布、RISC-V 硬件/内核、Firefox 及主机部署尚未执行。
+
+不推送或创建 GitHub Release，不移动旧标签/替换旧附件。结束时回收自建工作树、测试服务/Go/Node/Chrome/QEMU 和临时夹具；保留用户补丁、验证报告/缓存，不操作 tmp/demo 或主机部署。
+
 ### 默认配置与本地现有配置不同
 
 新生成配置默认：`0.0.0.0:17342`，根目录 `content`，状态目录 `state`，黑名单 `blacklist.txt`，日志目录 `logs`，目录映射包括：
